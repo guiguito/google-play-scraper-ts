@@ -1,0 +1,18 @@
+# Node
+node_modules/
+dist/
+coverage/
+docs/
+doc/
+.nyc_output/
+
+# Local env
+.env*
+
+# Editors
+.DS_Store
+*.log
+
+# Do not track upstream references
+reference/
+ui-tests/
