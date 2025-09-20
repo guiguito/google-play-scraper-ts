@@ -30,7 +30,13 @@ export async function request(
   opts: RequestOptions,
   retry: RetryOptions = { retries: 2, backoffMs: 300 }
 ): Promise<string> {
+  const DEFAULT_HEADERS: Record<string, string> = {
+    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+    'Accept-Language': 'en-US,en;q=0.9',
+  };
+
   const { url, method = 'GET', headers = {}, body } = opts;
+  const requestHeaders = { ...DEFAULT_HEADERS, ...headers };
   let attempt = 0;
   let lastErr: unknown;
   const u = new NodeURL(url);
@@ -46,7 +52,7 @@ export async function request(
             port: u.port,
             path: u.pathname + (u.search || ''),
             method,
-            headers,
+            headers: requestHeaders,
           },
           (res) => {
             const chunks: Buffer[] = [];

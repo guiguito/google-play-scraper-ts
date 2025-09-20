@@ -45,6 +45,38 @@ describe('modules/list', () => {
     scope.done();
   });
 
+  it('encodes collection and category in the batchexecute request body', async () => {
+    const data = buildCollectionPayload([]);
+    const input = [[null, null, JSON.stringify(data)]];
+    const responseBody = `x\ny\nz\n${JSON.stringify(input)}\n`;
+
+    let capturedBody = '';
+    const scope = nock(BASE_URL)
+      .post(/\/batchexecute/, (body) => {
+        if (Buffer.isBuffer(body)) {
+          capturedBody = body.toString('utf8');
+        } else if (typeof body === 'string') {
+          capturedBody = body;
+        } else {
+          capturedBody = JSON.stringify(body);
+        }
+        return true;
+      })
+      .reply(200, responseBody, { 'Content-Type': 'text/plain' });
+
+    await list({
+      category: constants.category.APPLICATION,
+      collection: constants.collection.TOP_FREE,
+      num: 1,
+      lang: 'en',
+      country: 'us',
+    });
+
+    expect(capturedBody).to.include('topselling_free');
+    expect(capturedBody).to.include('APPLICATION');
+    scope.done();
+  });
+
   it('retrieves full detail when requested', async () => {
     const detailItem = buildListItem();
     detailItem[0][3] = 'Detail App';
