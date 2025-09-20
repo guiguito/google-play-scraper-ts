@@ -33,7 +33,8 @@ module.exports = [
         setTimeout: 'readonly',
         setInterval: 'readonly',
         clearTimeout: 'readonly',
-        Buffer: 'readonly'
+        Buffer: 'readonly',
+        console: 'readonly'
       }
     },
     plugins: { '@typescript-eslint': tsPlugin },
@@ -44,6 +45,44 @@ module.exports = [
       '@typescript-eslint/no-unused-vars': 'off',
       'no-empty': 'off',
       'no-useless-escape': 'off'
+    }
+  },
+  {
+    files: ['scripts/**/*.js', 'ui-tests/server.js'],
+    languageOptions: {
+      ecmaVersion: 'latest',
+      sourceType: 'commonjs',
+      globals: {
+        require: 'readonly',
+        module: 'readonly',
+        __dirname: 'readonly',
+        __filename: 'readonly',
+        process: 'readonly',
+        console: 'readonly',
+        Buffer: 'readonly',
+        URL: 'readonly',
+        setTimeout: 'readonly'
+      }
+    },
+    rules: {
+      'no-undef': 'off'
+    }
+  },
+  {
+    files: ['ui-tests/ui.js'],
+    languageOptions: {
+      ecmaVersion: 'latest',
+      sourceType: 'module',
+      globals: {
+        window: 'readonly',
+        document: 'readonly',
+        fetch: 'readonly',
+        FormData: 'readonly',
+        console: 'readonly'
+      }
+    },
+    rules: {
+      'no-undef': 'off'
     }
   },
   {
@@ -67,7 +106,8 @@ module.exports = [
     rules: {
       'no-unused-vars': 'off',
       '@typescript-eslint/no-unused-vars': 'off',
-      'no-undef': 'off'
+      'no-undef': 'off',
+      'no-useless-escape': 'off'
     }
   }
 ];

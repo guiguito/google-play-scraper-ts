@@ -2,6 +2,7 @@ import { BASE_URL } from '../constants';
 import { request, createClient } from '../http/client';
 import * as scriptData from '../utils/scriptData';
 import { processPages, checkFinished, type ProcessMappings } from '../utils/processPages';
+import appList from '../utils/appList';
 import type { JsonValue } from '../types';
 import type { AppListItem } from '../utils/appList';
 
@@ -147,7 +148,6 @@ function extractFirstPageApps(parsed: JsonValue): AppListItem[] {
 
   const mapPrimary = scriptData.extractor(FIRST_PAGE_MAPPINGS as unknown as Record<string, any>);
   // Fallback extractor: some cluster pages reuse the appList card shape
-  const { default: appList } = require('../utils/appList');
   const mapFallback = scriptData.extractor(appList.MAPPINGS as unknown as Record<string, any>);
   const items = scriptData.getPathValue(parsed, INITIAL_MAPPINGS.apps);
   if (!Array.isArray(items)) return [];
@@ -187,7 +187,6 @@ function extractAnyApps(parsed: JsonValue): AppListItem[] {
     score: { path: [4, 1] as const, fun: asNumber },
   };
   const mapPrimary = scriptData.extractor(FIRST_PAGE_MAPPINGS as unknown as Record<string, any>);
-  const { default: appList } = require('../utils/appList');
   const mapFallback = scriptData.extractor(appList.MAPPINGS as unknown as Record<string, any>);
 
   const seen = new Set<string>();
