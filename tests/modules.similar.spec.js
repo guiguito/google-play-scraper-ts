@@ -141,4 +141,28 @@ describe('modules/similar', () => {
     scope1.done();
     scope2.done();
   });
+
+  it('returns inline ds:3 apps when no cluster URL is present', async () => {
+    // Details page without AF_dataServiceRequests cluster id; only inline ds:3 with apps
+    const item = [];
+    item[2] = 'Spotify for Artists';
+    item[12] = ['com.spotify.s4a'];
+    item[9] = [null, null, null, null, ['', '', '/store/apps/details?id=com.spotify.s4a']];
+    const ds3 = [];
+    ds3[0] = [];
+    ds3[0][1] = [];
+    ds3[0][1][0] = [];
+    ds3[0][1][0][21] = [];
+    ds3[0][1][0][21][0] = [item];
+    const detailsHtml = `<script>AF_initDataCallback({key: 'ds:3', data: ${JSON.stringify(ds3)}, sideChannel: {}});</script>`;
+
+    const scope = nock(BASE_URL)
+      .get(uri => uri.startsWith('/store/apps/details'))
+      .reply(200, detailsHtml, { 'Content-Type': 'text/html' });
+
+    const res = await similar({ appId: 'com.spotify.music', lang: 'en', country: 'us' });
+    expect(res.length).to.be.greaterThan(0);
+    expect(res[0].appId).to.equal('com.spotify.s4a');
+    scope.done();
+  });
 });

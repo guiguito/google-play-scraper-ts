@@ -77,6 +77,52 @@ describe('modules/list', () => {
     scope.done();
   });
 
+  it('encodes TOP_PAID + GAME_ACTION in body', async () => {
+    const data = buildCollectionPayload([]);
+    const input = [[null, null, JSON.stringify(data)]];
+    const responseBody = `x\ny\nz\n${JSON.stringify(input)}\n`;
+
+    let capturedBody = '';
+    const scope = nock(BASE_URL)
+      .post(/\/batchexecute/, (body) => {
+        if (Buffer.isBuffer(body)) capturedBody = body.toString('utf8');
+        else if (typeof body === 'string') capturedBody = body;
+        else capturedBody = JSON.stringify(body);
+        return true;
+      })
+      .reply(200, responseBody, { 'Content-Type': 'text/plain' });
+
+    const res = await list({
+      category: constants.category.GAME_ACTION,
+      collection: constants.collection.TOP_PAID,
+      num: 5,
+      lang: 'en',
+      country: 'us',
+    });
+
+    expect(capturedBody).to.include('topselling_paid');
+    expect(capturedBody).to.include('GAME_ACTION');
+    scope.done();
+  });
+
+  it('falls back to legacy body when dynamic body is rejected', async () => {
+    const data = buildCollectionPayload([buildListItem()]);
+    const input = [[null, null, JSON.stringify(data)]];
+    const okBody = `x\ny\nz\n${JSON.stringify(input)}\n`;
+
+    const s1 = nock(BASE_URL)
+      .post(/\/batchexecute/)
+      .reply(400, 'bad');
+    const s2 = nock(BASE_URL)
+      .post(/\/batchexecute/)
+      .reply(200, okBody, { 'Content-Type': 'text/plain' });
+
+    const res = await list({ category: constants.category.APPLICATION, collection: constants.collection.TOP_FREE, num: 1, lang: 'en', country: 'us' });
+    expect(res).to.have.length(1);
+    s1.done();
+    s2.done();
+  });
+
   it('retrieves full detail when requested', async () => {
     const detailItem = buildListItem();
     detailItem[0][3] = 'Detail App';
