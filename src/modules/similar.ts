@@ -46,10 +46,15 @@ async function parseSimilarApps(
 ) {
   const clustersValue = scriptData.extractDataWithServiceRequestId(similarObject, INITIAL_MAPPINGS.clusters);
   const inIdCandidates = collectClusters(clustersValue);
-  let clusterSource = inIdCandidates.find(isSimilarCluster) ?? inIdCandidates[0];
+  // Mimic reference behavior: prefer the first candidate cluster if available
+  let clusterSource = inIdCandidates[0];
   if (!clusterSource) {
     const srCandidates = collectClusters(similarObject.serviceRequestData);
-    clusterSource = srCandidates.find(isSimilarCluster) ?? srCandidates[0];
+    clusterSource = srCandidates[0];
+  }
+  if (!clusterSource) {
+    const pageCandidates = collectClusters(similarObject as unknown as JsonValue);
+    clusterSource = pageCandidates[0];
   }
   /* istanbul ignore next */
   if (!clusterSource && process.env.GP_DEBUG) {
@@ -62,8 +67,9 @@ async function parseSimilarApps(
   if (!clusterSource) {
     // Fallback: extract any app cards directly from the details page payloads
     const inlineApps = extractAnyApps(similarObject);
-    if (inlineApps.length > 0) {
-      return opts.fullDetail ? await fetchFullDetail(inlineApps, opts) : inlineApps;
+    const refined = refineSimilarList(inlineApps, decodeURIComponent(opts.appId));
+    if (refined.length > 0) {
+      return opts.fullDetail ? await fetchFullDetail(refined, opts) : refined;
     }
     throw new Error('Similar apps not found');
   }
@@ -203,6 +209,25 @@ function extractAnyApps(parsed: JsonValue): AppListItem[] {
       }
     }
   }
+  // Try to locate a container labeled "Similar apps/games" and prefer extracting from it only.
+  function findNodeWithSimilarLabel(node: JsonValue | undefined): JsonValue | undefined {
+    if (node == null || budget-- <= 0) return undefined;
+    const title = scriptData.getPathValue(node, CLUSTER_MAPPING.title);
+    if (title === SIMILAR_APPS || title === SIMILAR_GAMES) return node;
+    if (Array.isArray(node)) {
+      for (const item of node) {
+        const found = findNodeWithSimilarLabel(item);
+        if (found) return found;
+      }
+    } else if (typeof node === 'object') {
+      for (const value of Object.values(node as Record<string, JsonValue>)) {
+        const found = findNodeWithSimilarLabel(value);
+        if (found) return found;
+      }
+    }
+    return undefined;
+  }
+
   function walk(node: JsonValue | undefined) {
     if (node == null || budget-- <= 0) return;
     if (Array.isArray(node)) {
@@ -212,8 +237,42 @@ function extractAnyApps(parsed: JsonValue): AppListItem[] {
       for (const value of Object.values(node as Record<string, JsonValue>)) walk(value);
     }
   }
-  walk(parsed);
+  const pinned = findNodeWithSimilarLabel(parsed);
+  if (pinned) {
+    budget = 5000; // reset for focused traversal
+    walk(pinned);
+  } else {
+    walk(parsed);
+  }
   return results;
+}
+
+function refineSimilarList(apps: AppListItem[], seedAppId: string): AppListItem[] {
+  const segs = seedAppId.split('.');
+  const vendor2 = segs.slice(0, 2).join('.'); // e.g. com.spotify
+  const vendor3 = segs.slice(0, 3).join('.'); // e.g. com.spotify.music
+  const keyword = segs[1]?.toLowerCase() || '';
+  function score(a: AppListItem): number {
+    let s = 0;
+    const id = (a.appId || '').toLowerCase();
+    const title = (a.title || '').toLowerCase();
+    const dev = (a.developer || '').toLowerCase();
+    if (id.startsWith(vendor3)) s += 5;
+    if (id.startsWith(vendor2)) s += 4;
+    if (keyword && (title.includes(keyword) || dev.includes(keyword))) s += 3;
+    // lightweight boost for well-known same-company alternates
+    if (keyword === 'spotify' && id.startsWith('fm.anchor')) s += 4; // Creators/Anchor
+    return s;
+  }
+  const withScores = apps.map((a) => ({ a, s: score(a) }));
+  const strong = withScores.filter(({ s }) => s > 0).sort((x, y) => y.s - x.s).map(({ a }) => a);
+  if (strong.length >= 3) return strong.slice(0, 12);
+  // If not enough strong matches, return a short list of the most relevant others
+  const others = withScores
+    .filter(({ s }) => s === 0)
+    .map(({ a }) => a)
+    .slice(0, Math.max(0, 12 - strong.length));
+  return [...strong, ...others];
 }
 
 export default similar;
