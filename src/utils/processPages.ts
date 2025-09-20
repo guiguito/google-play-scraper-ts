@@ -66,7 +66,8 @@ export async function checkFinished<T>(
   opts: PageOptions,
   savedApps: T[],
   nextToken: string | undefined,
-  appDetails?: AppDetailsFn<T>
+  appDetails?: AppDetailsFn<T>,
+  requester?: (args: { url: string; method: 'GET' | 'POST'; headers?: Record<string,string>; body?: string }) => Promise<string>
 ): Promise<T[]> {
   if (savedApps.length >= opts.num || !nextToken) {
     return savedApps.slice(0, opts.num);
@@ -80,7 +81,11 @@ export async function checkFinished<T>(
     opts.requestOptions?.headers ?? {}
   );
 
-  const html = await request({ url, method: 'POST', body, headers });
+  const doRequest = requester
+    ? requester
+    : ({ url, method, headers, body }: { url: string; method: 'GET' | 'POST'; headers?: Record<string,string>; body?: string }) => request({ url, method, headers, body });
+
+  const html = await doRequest({ url, method: 'POST', body, headers });
   const input = JSON.parse(html.substring(5)) as JsonValue;
   const batchEntry = Array.isArray(input) && Array.isArray(input[0]) ? input[0] : undefined;
   const rawData = Array.isArray(batchEntry) ? batchEntry[2] : undefined;

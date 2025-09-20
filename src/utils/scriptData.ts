@@ -26,8 +26,14 @@ export function getPathValue(source: JsonValue, path: Path): JsonValue | undefin
   for (const key of path) {
     if (current == null) return undefined;
     if (typeof key === 'number') {
-      if (!Array.isArray(current)) return undefined;
-      current = current[key];
+      if (Array.isArray(current)) {
+        current = current[key];
+      } else if (isJsonObject(current)) {
+        // Ramda's path treats numeric keys as property names on objects too.
+        current = (current as JsonObject)[String(key) as keyof JsonObject];
+      } else {
+        return undefined;
+      }
     } else {
       if (!isJsonObject(current)) return undefined;
       current = current[key];
@@ -37,13 +43,23 @@ export function getPathValue(source: JsonValue, path: Path): JsonValue | undefin
 }
 
 export function extractDataWithServiceRequestId(parsedData: ParsedScriptData, spec: MappingSpecFn<unknown>) {
-  const serviceRequests = parsedData.serviceRequestData ?? {};
-  const match = Object.keys(serviceRequests).find((serviceRequest) => {
-    const dsValues = serviceRequests[serviceRequest];
+  const root = parsedData.serviceRequestData ?? {};
+  const keys = Object.keys(root);
+  // Prefer matching the specific service request id when available
+  const matchKey = keys.find((k) => {
+    const dsValues = (root as Record<string, JsonObject & { id?: string }>)[k];
     return dsValues?.id === spec.useServiceRequestId;
   });
-  const targetPath = match ? ([match, ...spec.path] as Path) : spec.path;
-  return getPathValue(parsedData, targetPath);
+  if (matchKey) {
+    const node = getPathValue((root as Record<string, JsonObject>)[matchKey], spec.path);
+    if (node !== undefined) return node;
+  }
+  // Fallback: search all service requests at the given path
+  for (const k of keys) {
+    const node = getPathValue((root as Record<string, JsonObject>)[k], spec.path);
+    if (node !== undefined) return node;
+  }
+  return undefined;
 }
 
 function isMappingSpecFn<T>(spec: MappingSpec<T>): spec is MappingSpecFn<T> {

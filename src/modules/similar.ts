@@ -1,8 +1,9 @@
 import { BASE_URL } from '../constants';
-import { request } from '../http/client';
+import { request, createClient } from '../http/client';
 import * as scriptData from '../utils/scriptData';
-import { processPages, type ProcessMappings } from '../utils/processPages';
+import { processPages, checkFinished, type ProcessMappings } from '../utils/processPages';
 import type { JsonValue } from '../types';
+import type { AppListItem } from '../utils/appList';
 
 const INITIAL_MAPPINGS = {
   clusters: { path: ['1', '1'] as const, fun: (value: JsonValue | undefined) => value, useServiceRequestId: 'ag2B9c' as const },
@@ -30,24 +31,61 @@ export interface SimilarOptions {
 export async function similar(opts: SimilarOptions) {
   if (!opts || !opts.appId) throw new Error('appId missing');
   const merged = { appId: encodeURIComponent(opts.appId), lang: opts.lang || 'en', country: opts.country || 'us', fullDetail: opts.fullDetail };
-  const qs = new URLSearchParams({ id: merged.appId, hl: 'en', gl: merged.country }).toString();
+  const qs = new URLSearchParams({ id: merged.appId, hl: merged.lang, gl: merged.country }).toString();
   const similarUrl = `${BASE_URL}/store/apps/details?${qs}`;
-  const html = await request({ url: similarUrl, method: 'GET' });
+  const client = createClient();
+  const html = await client.request({ url: similarUrl, method: 'GET' });
   const parsed = scriptData.parse(html);
-  return parseSimilarApps(parsed, merged);
+  return parseSimilarApps(parsed, merged, client);
 }
 
-async function parseSimilarApps(similarObject: JsonValue, opts: { appId: string; lang: string; country: string; fullDetail?: boolean }) {
-  const clustersValue = scriptData.extractDataWithServiceRequestId(similarObject as scriptData.ParsedScriptData, INITIAL_MAPPINGS.clusters);
-  const clusterSource = findClusterEntry(clustersValue);
-  if (!clusterSource) throw new Error('Similar apps not found');
+async function parseSimilarApps(
+  similarObject: scriptData.ParsedScriptData,
+  opts: { appId: string; lang: string; country: string; fullDetail?: boolean },
+  client = createClient()
+) {
+  const clustersValue = scriptData.extractDataWithServiceRequestId(similarObject, INITIAL_MAPPINGS.clusters);
+  const inIdCandidates = collectClusters(clustersValue);
+  let clusterSource = inIdCandidates.find(isSimilarCluster) ?? inIdCandidates[0];
+  if (!clusterSource) {
+    const srCandidates = collectClusters(similarObject.serviceRequestData);
+    clusterSource = srCandidates.find(isSimilarCluster) ?? srCandidates[0];
+  }
+  /* istanbul ignore next */
+  if (!clusterSource && process.env.GP_DEBUG) {
+    // minimal debug breadcrumbs to help diagnose live site shape changes
+    // avoid serializing entire parsed tree
+    const serviceKeys = Object.keys(similarObject.serviceRequestData || {});
+    // eslint-disable-next-line no-console
+    console.warn('[similar] clustersValue:', !!clustersValue, 'serviceKeys:', serviceKeys.slice(0, 5));
+  }
+  if (!clusterSource) {
+    // Fallback: extract any app cards directly from the details page payloads
+    const inlineApps = extractAnyApps(similarObject);
+    if (inlineApps.length > 0) {
+      return opts.fullDetail ? await fetchFullDetail(inlineApps, opts) : inlineApps;
+    }
+    throw new Error('Similar apps not found');
+  }
   const clusterUrl = getParsedCluster(clusterSource);
   if (!clusterUrl) throw new Error('Similar cluster URL not found');
 
   const fullClusterUrl = `${BASE_URL}${clusterUrl}&gl=${opts.country}&hl=${opts.lang}`;
-  const html = await request({ url: fullClusterUrl, method: 'GET' });
+  const html = await client.request({ url: fullClusterUrl, method: 'GET' });
   const parsed = scriptData.parse(html);
-  return processPages(parsed, { num: 60, numberOfApps: 60, fullDetail: opts.fullDetail, lang: opts.lang, country: opts.country }, [], PAGE_MAPPINGS);
+
+  // First cluster page has a different mapping than subsequent batchexecute pages.
+  const firstPageApps = extractFirstPageApps(parsed);
+  const apps = opts.fullDetail ? await fetchFullDetail(firstPageApps, opts) : firstPageApps;
+  const tokenValue = scriptData.getPathValue(parsed, INITIAL_MAPPINGS.token);
+  const token = typeof tokenValue === 'string' ? tokenValue : undefined;
+
+  // Continue with batchexecute paging which uses appList mappings.
+  const appDetails = async ({ appId, lang, country }: { appId: string; lang: string; country: string }) => {
+    const { app } = await import('./app');
+    return app({ appId, lang, country });
+  };
+  return checkFinished({ num: 60, numberOfApps: 60, fullDetail: opts.fullDetail, lang: opts.lang, country: opts.country }, apps, token, appDetails, ({ url, method, headers, body }) => client.request({ url, method, headers, body } as any));
 }
 
 function isSimilarCluster(cluster: JsonValue | undefined) {
@@ -60,20 +98,122 @@ function getParsedCluster(similarObject: JsonValue | undefined) {
   return typeof url === 'string' ? url : '';
 }
 
-function findClusterEntry(value: JsonValue | undefined): JsonValue | undefined {
-  if (isSimilarCluster(value)) return value;
-  if (Array.isArray(value)) {
-    for (const item of value) {
-      const found = findClusterEntry(item);
-      if (found) return found;
+function hasClusterUrl(cluster: JsonValue | undefined) {
+  const url = scriptData.getPathValue(cluster ?? null, CLUSTER_MAPPING.url);
+  return typeof url === 'string' && url.length > 0;
+}
+
+function collectClusters(value: JsonValue | undefined): JsonValue[] {
+  const out: JsonValue[] = [];
+  function walk(v: JsonValue | undefined) {
+    if (!v) return;
+    if (hasClusterUrl(v)) {
+      out.push(v);
     }
-  } else if (value && typeof value === 'object') {
-    for (const item of Object.values(value as Record<string, JsonValue>)) {
-      const found = findClusterEntry(item);
-      if (found) return found;
+    if (Array.isArray(v)) {
+      for (const item of v) walk(item);
+    } else if (typeof v === 'object') {
+      for (const item of Object.values(v as Record<string, JsonValue>)) walk(item);
     }
   }
-  return undefined;
+  walk(value);
+  return out;
+}
+
+// First page (cluster HTML) mappings follow the reference implementation
+// and differ from subsequent batchexecute pages parsed by appList.
+function extractFirstPageApps(parsed: JsonValue): AppListItem[] {
+  function asString(v: JsonValue | undefined) { return typeof v === 'string' ? v : undefined; }
+  function asNumber(v: JsonValue | undefined) { return typeof v === 'number' ? v : undefined; }
+  const FIRST_PAGE_MAPPINGS = {
+    title: { path: [3] as const, fun: asString },
+    appId: { path: [0, 0] as const, fun: asString },
+    url: { path: [10, 4, 2] as const, fun: (p: JsonValue | undefined) => typeof p === 'string' ? new URL(p, BASE_URL).toString() : undefined },
+    icon: { path: [1, 3, 2] as const, fun: asString },
+    developer: { path: [14] as const, fun: asString },
+    currency: { path: [8, 1, 0, 1] as const, fun: asString },
+    price: { path: [8, 1, 0, 0] as const, fun: (v: JsonValue | undefined) => typeof v === 'number' ? v / 1_000_000 : 0 },
+    free: { path: [8, 1, 0, 0] as const, fun: (v: JsonValue | undefined) => v === 0 },
+    summary: { path: [13, 1] as const, fun: asString },
+    scoreText: { path: [4, 0] as const, fun: asString },
+    score: { path: [4, 1] as const, fun: asNumber },
+  } satisfies Record<string, { path: ReadonlyArray<string | number>; fun: (v: JsonValue | undefined) => unknown }>;
+
+  const mapPrimary = scriptData.extractor(FIRST_PAGE_MAPPINGS as unknown as Record<string, any>);
+  // Fallback extractor: some cluster pages reuse the appList card shape
+  const { default: appList } = require('../utils/appList');
+  const mapFallback = scriptData.extractor(appList.MAPPINGS as unknown as Record<string, any>);
+  const items = scriptData.getPathValue(parsed, INITIAL_MAPPINGS.apps);
+  if (!Array.isArray(items)) return [];
+  return items.map((i) => {
+    const a = mapPrimary(i) as AppListItem;
+    const b = mapFallback(i) as AppListItem;
+    const merged: AppListItem = { ...b };
+    for (const [k, v] of Object.entries(a)) {
+      if (v !== undefined) (merged as any)[k] = v;
+    }
+    return merged;
+  });
+}
+
+async function fetchFullDetail(apps: AppListItem[], opts: { lang: string; country: string }) {
+  const { app } = await import('./app');
+  const tasks = apps
+    .filter((i): i is AppListItem & { appId: string } => typeof i.appId === 'string')
+    .map((i) => app({ appId: i.appId, lang: opts.lang, country: opts.country }));
+  return Promise.all(tasks);
+}
+
+function extractAnyApps(parsed: JsonValue): AppListItem[] {
+  function asString(v: JsonValue | undefined) { return typeof v === 'string' ? v : undefined; }
+  function asNumber(v: JsonValue | undefined) { return typeof v === 'number' ? v : undefined; }
+  const FIRST_PAGE_MAPPINGS = {
+    title: { path: [3] as const, fun: asString },
+    appId: { path: [0, 0] as const, fun: asString },
+    url: { path: [10, 4, 2] as const, fun: (p: JsonValue | undefined) => typeof p === 'string' ? new URL(p, BASE_URL).toString() : undefined },
+    icon: { path: [1, 3, 2] as const, fun: asString },
+    developer: { path: [14] as const, fun: asString },
+    currency: { path: [8, 1, 0, 1] as const, fun: asString },
+    price: { path: [8, 1, 0, 0] as const, fun: (v: JsonValue | undefined) => typeof v === 'number' ? v / 1_000_000 : 0 },
+    free: { path: [8, 1, 0, 0] as const, fun: (v: JsonValue | undefined) => v === 0 },
+    summary: { path: [13, 1] as const, fun: asString },
+    scoreText: { path: [4, 0] as const, fun: asString },
+    score: { path: [4, 1] as const, fun: asNumber },
+  };
+  const mapPrimary = scriptData.extractor(FIRST_PAGE_MAPPINGS as unknown as Record<string, any>);
+  const { default: appList } = require('../utils/appList');
+  const mapFallback = scriptData.extractor(appList.MAPPINGS as unknown as Record<string, any>);
+
+  const seen = new Set<string>();
+  const results: AppListItem[] = [];
+  let budget = 5000; // cap traversal to avoid runaway costs
+  function mergePreferDefined(a: AppListItem, b: AppListItem): AppListItem {
+    const out: AppListItem = { ...a };
+    for (const [k, v] of Object.entries(b)) { if (v !== undefined) (out as any)[k] = v; }
+    return out;
+  }
+  function consider(node: JsonValue) {
+    const a = mapPrimary(node as any) as AppListItem;
+    const b = mapFallback(node as any) as AppListItem;
+    const merged = mergePreferDefined(b, a);
+    if (typeof merged.appId === 'string' && typeof merged.url === 'string' && merged.url.includes('/store/apps/details?id=')) {
+      if (!seen.has(merged.appId)) {
+        seen.add(merged.appId);
+        results.push(merged);
+      }
+    }
+  }
+  function walk(node: JsonValue | undefined) {
+    if (node == null || budget-- <= 0) return;
+    if (Array.isArray(node)) {
+      consider(node);
+      for (const item of node) walk(item);
+    } else if (typeof node === 'object') {
+      for (const value of Object.values(node as Record<string, JsonValue>)) walk(value);
+    }
+  }
+  walk(parsed);
+  return results;
 }
 
 export default similar;
