@@ -1,5 +1,8 @@
 # google-play-scraper-ts
 
+[![npm version](https://img.shields.io/npm/v/google-play-scraper-ts.svg?color=blue)](https://www.npmjs.com/package/google-play-scraper-ts)
+[![npm downloads](https://img.shields.io/npm/dm/google-play-scraper-ts.svg)](https://www.npmjs.com/package/google-play-scraper-ts)
+
 Fully typed Node.js client for Google Play Store metadata inspired by [`google-play-scraper`](https://github.com/facundoolano/google-play-scraper). The rewrite keeps the familiar API while adding:
 
 - ✅ **TypeScript-first** types and emitted declaration files
@@ -38,166 +41,311 @@ const topFreeMusic = await gplay.list({
 });
 ```
 
+## Common conventions
+
+- `lang` controls the Play Store UI language (default `'en'`).
+- `country` controls geotargeting and pricing (default `'us'`).
+- Methods that accept `requestOptions` forward `requestOptions.headers` to the underlying HTTP client so you can inject cookies or additional headers (see per-method notes—`suggest` currently ignores the option for API parity).
+- Every function returns a Promise; runtime errors (invalid inputs, store shape changes, HTTP failures) surface as rejected promises.
+
 ## API reference
 
-All methods are asynchronous. `lang` defaults to `'en'`, `country` defaults to `'us'` unless otherwise noted.
+All methods are asynchronous and resolve to typed results. The library mirrors the original [`google-play-scraper`](https://github.com/facundoolano/google-play-scraper) surface while enriching the responses with strict TypeScript types.
 
-### `app(options)`
+### Shared types
 
-Fetches rich information about a single application.
+#### `AppDetails`
 
-| Option | Type | Default | Description |
-| --- | --- | --- | --- |
-| `appId` | `string` | – | Application package name (`com.spotify.music`). |
-| `lang` | `string` | `'en'` | Play Store UI language (`en`, `es`, …). |
-| `country` | `string` | `'us'` | Play Store country (`us`, `br`, …). |
-| `requestOptions` | `{ headers?: Record<string,string> }` | – | Extra HTTP headers (e.g. cookies). |
+**Identification & copy**
 
-Returns an object with fields such as `title`, `description`, `summary`, `installs`, `score`, `price`, `free`, `categories`, `screenshots`, `developer`, `privacyPolicy`, `comments`, and many more (mirrors the data provided by the Play Store). Example:
-
-```jsonc
-{
-  "appId": "com.spotify.music",
-  "title": "Spotify: Music and Podcasts",
-  "summary": "Play music and podcasts",
-  "score": 4.4,
-  "ratings": 32145678,
-  "price": 0,
-  "free": true,
-  "categories": [{ "name": "Music & Audio", "id": "MUSIC_AND_AUDIO" }],
-  "developer": "Spotify AB",
-  "privacyPolicy": "https://www.spotify.com/privacy"
-}
-```
-
-### `list(options)`
-
-Retrieve a curated collection (top charts). Supports summary or full-detail mode.
-
-| Option | Type | Default | Description |
-| --- | --- | --- | --- |
-| `collection` | `constants.collection` | `TOP_FREE` | Chart to fetch (`TOP_FREE`, `TOP_PAID`, `GROSSING`). |
-| `category` | `constants.category` | `APPLICATION` | App category. |
-| `age` | `constants.age \\| string` | – | Age filter (`AGE_RANGE1`, …). |
-| `lang`, `country` | `string` | `'en'`, `'us'` | Locale. |
-| `num` | `number` | `500` | Max apps to fetch. |
-| `fullDetail` | `boolean` | `false` | When `true`, returns full `app()` payloads for each item. |
-
-Returns an array of app summaries (title, appId, price, score, …) or full app objects when `fullDetail` is `true`.
-
-### `search(options)`
-
-Performs a Play Store search.
-
-| Option | Type | Default | Description |
-| --- | --- | --- | --- |
-| `term` | `string` | – | Search query. |
-| `num` | `number` | `20` | Max results (max 250). |
-| `fullDetail` | `boolean` | `false` | Fetch full app details. |
-| `price` | `'all' \\| 'free' \\| 'paid'` | `'all'` | Price filter. |
-| `requestOptions`, `lang`, `country` | – | Like `app()`. |
-
-Returns an array of app summaries or full details.
-
-### `suggest(options)`
-
-| Option | Type | Default | Description |
-| --- | --- | --- | --- |
-| `term` | `string` | – | Partial search term. |
-| `lang`, `country`, `requestOptions` | – | Locale and headers. |
-
-Returns an array of suggestion strings (`['twitter', 'twitter lite', …]`).
-
-### `developer(options)`
-
-| Option | Type | Default | Description |
-| --- | --- | --- | --- |
-| `devId` | `string` | – | Developer ID (`Spotify+AB`). |
-| `num` | `number` | `60` | Max apps. |
-| `fullDetail`, `lang`, `country` | – | Like `list()`. |
-
-Returns apps published by the developer (full details when `fullDetail` is `true`).
-
-### `reviews(options)`
-
-Fetches user reviews for an app. Returns an object `{ data, nextPaginationToken }`.
-
-| Option | Type | Default | Description |
-| --- | --- | --- | --- |
-| `appId` | `string` | – | Application package name. |
-| `sort` | `constants.sort` | `sort.NEWEST` | Sort order (`NEWEST`, `RATING`, `HELPFULNESS`). |
-| `num` | `number` | `150` | Max reviews to gather. |
-| `paginate` | `boolean` | `false` | When `false`, automatically follow the next token until `num` is reached. |
-| `nextPaginationToken` | `string` | `null` | Continue from a previous call. |
-| `lang`, `country` | `string` | `'en'`, `'us'` | Locale for review text. |
-
-A review item contains `id`, `userName`, `text`, `score`, `scoreText`, `thumbsUp`, `replyText`, `replyDate`, `version`, `criterias`, etc.
-
-### `similar(options)`
-
-Returns apps from the “Similar” cluster.
-
-| Option | Type | Default | Description |
-| --- | --- | --- | --- |
-| `appId` | `string` | – | Reference app. |
-| `fullDetail` | `boolean` | `false` | When `true`, fetches full app data for each similar item. |
-| `lang`, `country` | `string` | `'en'`, `'us'` | Locale. |
-
-### `permissions(options)`
-
-| Option | Type | Default |
+| Field | Type | Description |
 | --- | --- | --- |
-| `appId` | `string` | – |
-| `short` | `boolean` | `false` (set to `true` for the simplified list). |
-| `lang`, `country` | `string` | `'en'`, `'us'` |
+| `appId` | `string` | Requested package identifier. |
+| `url` | `string` | Canonical details URL including `hl`/`gl` query params. |
+| `title` | `string` | App title localized to `lang`. |
+| `summary` | `string` | Short marketing blurb. |
+| `description` | `string` | Plain-text description (HTML stripped). |
+| `descriptionHTML` | `string` | Raw HTML description from the store. |
+| `genre` | `string \| undefined` | Primary genre label. |
+| `genreId` | `string \| undefined` | Primary genre identifier. |
+| `categories` | `Array<{ name: string; id: string }>` | All category tags discovered in the payload. |
 
-Returns either a flat array of permission names (`short: true`) or detailed objects containing `permission` and `type`.
+**Ratings & installs**
 
-### `datasafety(options)`
-
-| Option | Type | Default |
+| Field | Type | Description |
 | --- | --- | --- |
-| `appId` | `string` | – |
-| `lang` | `string` | `'en'` |
+| `installs` | `string \| undefined` | Play Store installs text (e.g. `'10,000,000+'`). |
+| `minInstalls` | `number \| undefined` | Minimum installs inferred by the store. |
+| `maxInstalls` | `number \| undefined` | Maximum installs inferred by the store. |
+| `score` | `number \| undefined` | Average rating (0–5). |
+| `scoreText` | `string \| undefined` | Rating text shown in the UI. |
+| `ratings` | `number \| undefined` | Total number of ratings. |
+| `reviews` | `number \| undefined` | Total number of textual reviews. |
+| `histogram` | `Record<1 \| 2 \| 3 \| 4 \| 5, number>` | Star histogram counts (missing buckets default to `0`). |
 
-Returns an object:
+**Pricing & monetisation**
 
-```jsonc
-{
-  "sharedData": [ { "data": "email", "optional": false, "purpose": "ads", "type": "Personal info" } ],
-  "collectedData": [ ... ],
-  "securityPractices": [ { "practice": "Encrypt data", "description": "Data is encrypted" } ],
-  "privacyPolicyUrl": "https://example.com/privacy"
-}
-```
+| Field | Type | Description |
+| --- | --- | --- |
+| `free` | `boolean` | `true` when the app can be installed without payment. |
+| `price` | `number` | Current price in the store currency (e.g. `0`, `3.99`). |
+| `originalPrice` | `number \| undefined` | Pre-discount price in the store currency, when available. |
+| `discountEndDate` | `number \| undefined` | Unix timestamp (ms) for the promotion end, if provided. |
+| `currency` | `string \| undefined` | ISO-4217 currency code. |
+| `priceText` | `string` | Human readable price (falls back to `'Free'`). |
+| `offersIAP` | `boolean` | Whether the listing advertises in-app purchases. |
+| `IAPRange` | `string \| undefined` | Raw in-app purchase price range from the store. |
+| `isAvailableInPlayPass` | `boolean` | Indicates Google Play Pass availability. |
 
-### `categories()`
+**Media & merchandising**
 
-No arguments. Returns an array of category identifiers (`['APPLICATION', 'GAME', …]`).
+| Field | Type | Description |
+| --- | --- | --- |
+| `icon` | `string \| undefined` | Square icon URL. |
+| `headerImage` | `string \| undefined` | Feature graphic URL. |
+| `screenshots` | `string[]` | Screenshot URLs (order preserved). |
+| `video` | `string \| undefined` | Promotional video URL. |
+| `videoImage` | `string \| undefined` | Poster image for the promo video. |
+| `previewVideo` | `string \| undefined` | Short autoplay preview clip URL. |
+| `comments` | `string[]` | Up to five highlighted user quotes. |
+| `recentChanges` | `string \| undefined` | “What’s new” text block. |
 
-### `memoized(options)`
+**Developer & policies**
 
-Creates a lightweight in-memory cache for high-traffic lookups.
+| Field | Type | Description |
+| --- | --- | --- |
+| `developer` | `string \| undefined` | Developer display name. |
+| `developerId` | `string \| undefined` | Developer identifier extracted from profile link. |
+| `developerInternalID` | `string \| undefined` | Internal developer ID used by Play. |
+| `developerEmail` | `string \| undefined` | Contact email. |
+| `developerWebsite` | `string \| undefined` | Website URL. |
+| `developerAddress` | `string \| undefined` | Mailing address. |
+| `developerLegalName` | `string \| undefined` | Legal entity name. |
+| `developerLegalEmail` | `string \| undefined` | Legal contact email. |
+| `developerLegalAddress` | `string \| undefined` | Legal contact address (line breaks normalised). |
+| `developerLegalPhoneNumber` | `string \| undefined` | Legal contact phone number. |
+| `privacyPolicy` | `string \| undefined` | Privacy policy URL. |
+
+**Platform & release information**
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `released` | `string \| undefined` | Store-published release date text. |
+| `updated` | `number \| undefined` | Last update timestamp in ms since epoch. |
+| `version` | `string` | Latest version string (falls back to `'VARY'`). |
+| `androidVersion` | `string` | Minimum Android version, normalised (e.g. `'5.0'` or `'VARY'`). |
+| `androidVersionText` | `string` | Raw minimum version text from the listing. |
+| `androidMaxVersion` | `string \| undefined` | Maximum supported Android version if provided. |
+| `contentRating` | `string \| undefined` | Content rating label (e.g. `'Teen'`). |
+| `contentRatingDescription` | `string \| undefined` | Additional content rating guidance. |
+| `adSupported` | `boolean` | `true` if the listing discloses ads. |
+| `available` | `boolean` | Indicates overall availability in the requested country. |
+| `preregister` | `boolean` | `true` when the app is only available for preregistration. |
+| `earlyAccessEnabled` | `boolean` | `true` for early access / beta listings. |
+
+#### `AppSummary`
+
+Returned by list, search, developer and similar methods when `fullDetail` is `false`.
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `appId` | `string \| undefined` | Package identifier. |
+| `title` | `string \| undefined` | App title. |
+| `url` | `string \| undefined` | Absolute Play Store URL. |
+| `icon` | `string \| undefined` | Icon URL. |
+| `developer` | `string \| undefined` | Developer display name. |
+| `developerId` | `string \| undefined` | Developer profile identifier (when exposed). |
+| `summary` | `string \| undefined` | Short synopsis. |
+| `price` | `number \| undefined` | Current price in the store currency (`0` for free apps). |
+| `priceText` | `string \| undefined` | Price label (`'FREE'`, `'$0.99'`, …). |
+| `currency` | `string \| undefined` | Currency code. |
+| `free` | `boolean \| undefined` | `true` when no payment required. |
+| `score` | `number \| undefined` | Average rating. |
+| `scoreText` | `string \| undefined` | Rating text. |
+
+#### `Review`
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `id` | `string \| undefined` | Review identifier used by the Play Store. |
+| `userName` | `string \| undefined` | Reviewer display name. |
+| `userImage` | `string \| undefined` | Avatar image URL. |
+| `date` | `string \| null` | ISO string of the review timestamp (null if unavailable). |
+| `score` | `number \| undefined` | Star rating (1–5). |
+| `scoreText` | `string \| null \| undefined` | Rating represented as text. |
+| `url` | `string \| undefined` | Deep link back to the review on Play. |
+| `title` | `null` | Placeholder (Play no longer serves review titles). |
+| `text` | `string \| undefined` | Review body. |
+| `replyDate` | `string \| null` | ISO timestamp of the developer reply. |
+| `replyText` | `string \| null` | Developer reply content. |
+| `version` | `string \| null` | App version cited in the review. |
+| `thumbsUp` | `number \| undefined` | Helpfulness vote count. |
+| `criterias` | `Array<{ criteria: unknown \| null; rating: unknown \| null }> \| undefined` | Per-criteria ratings when supplied by Play (e.g. for games). |
+
+#### `PermissionItem`
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `permission` | `string` | Permission string (e.g. `'CAMERA'`). |
+| `type` | `0 \| 1` | Section identifier (`0` = `constants.permission.COMMON`, `1` = `constants.permission.OTHER`). |
+
+#### `DataSafetyItem`
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `data` | `string \| undefined` | Data point name (e.g. `'email'`). |
+| `optional` | `boolean \| null \| undefined` | Whether the data is optional (null when Google has no flag). |
+| `purpose` | `string \| null \| undefined` | Usage purpose label (e.g. `'ads'`). |
+| `type` | `string \| undefined` | Category grouping (e.g. `'Personal info'`). |
+
+### `app(options): Promise<AppDetails>`
+
+Fetch detailed information about a single application.
 
 | Option | Type | Default | Description |
 | --- | --- | --- | --- |
-| `maxAge` | `number` | `300_000` ms | TTL for cached entries. |
-| `max` | `number` | `1000` | Maximum cached keys (oldest is evicted). |
+| `appId` | `string` | – | Required package identifier (`com.spotify.music`). |
+| `lang` | `string` | `'en'` | Store UI language. |
+| `country` | `string` | `'us'` | Store country / pricing market. |
+| `requestOptions` | `{ headers?: Record<string, string> }` | – | Extra HTTP headers passed to Play (cookies, locale overrides, …). |
 
-Usage mirrors the main API:
+Resolves to an `AppDetails` object as documented above.
 
-```ts
-const memo = gplay.memoized({ maxAge: 60_000, max: 200 });
-await memo.app({ appId: 'com.spotify.music' });
-await memo.search({ term: 'music', num: 10 });
-```
+### `list(options): Promise<AppSummary[] \| AppDetails[]>`
 
-### Constants
+Retrieve curated charts (Top Free, Top Paid, Grossing, …). Set `fullDetail` to fetch the richer `AppDetails` payload for each entry.
 
-The default export exposes Play Store enumerations under `constants` for convenience:
+| Option | Type | Default | Description |
+| --- | --- | --- | --- |
+| `collection` | `constants.collection` | `constants.collection.TOP_FREE` | Chart to fetch. |
+| `category` | `constants.category` | `constants.category.APPLICATION` | App category filter. |
+| `age` | `constants.age \| string \| undefined` | – | Optional age-range filter. |
+| `lang` | `string` | `'en'` | Locale for metadata. |
+| `country` | `string` | `'us'` | Region / storefront. |
+| `num` | `number` | `500` | Maximum entries (Play caps at ~500). |
+| `fullDetail` | `boolean` | `false` | When true, fetch each item with `app()`. |
 
-- `constants.collection` – `TOP_FREE`, `TOP_PAID`, `GROSSING`
-- `constants.category` – All Play Store categories (`APPLICATION`, `GAME_MUSIC`, …)
+Returns an array of `AppSummary` entries, or `AppDetails` entries when `fullDetail` is enabled.
+
+### `search(options): Promise<AppSummary[] \| AppDetails[]>`
+
+Search the Play Store catalogue.
+
+| Option | Type | Default | Description |
+| --- | --- | --- | --- |
+| `term` | `string` | – | Search query (required). |
+| `lang` | `string` | `'en'` | Metadata language. |
+| `country` | `string` | `'us'` | Storefront country. |
+| `num` | `number` | `20` | Maximum results (hard limit 250). |
+| `fullDetail` | `boolean` | `false` | When true, hydrate each match via `app()`. |
+| `price` | `'all' \| 'free' \| 'paid'` | `'all'` | Price filter. |
+| `requestOptions` | `{ headers?: Record<string, string> }` | – | Forwarded headers for the search request. |
+
+Returns `AppSummary` results or `AppDetails` objects when `fullDetail` is set.
+
+### `suggest(options): Promise<string[]>`
+
+Fetch autocomplete suggestions from Play.
+
+| Option | Type | Default | Description |
+| --- | --- | --- | --- |
+| `term` | `string` | – | Partial query (required). |
+| `lang` | `string` | `'en'` | Suggestion language. |
+| `country` | `string` | `'us'` | Storefront country. |
+| `requestOptions` | `{ headers?: Record<string, string> }` | – | Reserved for API compatibility (currently ignored). |
+
+Resolves to an array of suggestion strings ordered by relevance.
+
+### `developer(options): Promise<AppSummary[] \| AppDetails[]>`
+
+List applications published by a developer profile.
+
+| Option | Type | Default | Description |
+| --- | --- | --- | --- |
+| `devId` | `string` | – | Developer identifier (numeric or slug). |
+| `lang` | `string` | `'en'` | Metadata language. |
+| `country` | `string` | `'us'` | Storefront country. |
+| `num` | `number` | `60` | Maximum apps to collect. |
+| `fullDetail` | `boolean` | `false` | Set to `true` for `AppDetails` results. |
+
+Returns developer listings as `AppSummary` entries, or full details when `fullDetail` is enabled.
+
+### `reviews(options): Promise<{ data: Review[]; nextPaginationToken: string \| null }>`
+
+Pull paginated user reviews for a given app.
+
+| Option | Type | Default | Description |
+| --- | --- | --- | --- |
+| `appId` | `string` | – | Target package identifier. |
+| `sort` | `constants.sort` | `constants.sort.NEWEST` | Sorting mode (`NEWEST`, `RATING`, `HELPFULNESS`). |
+| `lang` | `string` | `'en'` | Review language. |
+| `country` | `string` | `'us'` | Locale used for review localisation. |
+| `num` | `number` | `150` | Maximum reviews to gather before stopping. |
+| `paginate` | `boolean` | `false` | When `false`, auto-follow tokens until `num` reviews or exhaust data. |
+| `nextPaginationToken` | `string \| null` | `null` | Pass a token from a previous response to resume manually. |
+
+When `paginate` is `true`, the method fetches a single page and returns the next token (if any). The `data` array contains `Review` entries.
+
+### `similar(options): Promise<AppSummary[] \| AppDetails[]>`
+
+Retrieve apps from the “Similar” / “Related” clusters for a given listing.
+
+| Option | Type | Default | Description |
+| --- | --- | --- | --- |
+| `appId` | `string` | – | Reference package identifier. |
+| `lang` | `string` | `'en'` | Metadata language. |
+| `country` | `string` | `'us'` | Storefront country. |
+| `fullDetail` | `boolean` | `false` | Hydrate each result via `app()` when `true`. |
+
+Returns up to ~60 related apps as `AppSummary` or `AppDetails` entries.
+
+### `permissions(options): Promise<string[] \| PermissionItem[]>`
+
+Inspect runtime permissions declared in the Play listing.
+
+| Option | Type | Default | Description |
+| --- | --- | --- | --- |
+| `appId` | `string` | – | Target package identifier. |
+| `short` | `boolean` | `false` | When `true`, return a flat list of permission strings. Otherwise return `PermissionItem` objects grouped by type. |
+| `lang` | `string` | `'en'` | Language for permission descriptions (when available). |
+| `country` | `string` | `'us'` | Storefront country. |
+
+### `datasafety(options): Promise<{ sharedData: DataSafetyItem[]; collectedData: DataSafetyItem[]; securityPractices: Array<{ practice?: string; description?: string }>; privacyPolicyUrl?: string }>`
+
+Fetch the Google Play “Data safety” disclosure for an app.
+
+| Option | Type | Default | Description |
+| --- | --- | --- | --- |
+| `appId` | `string` | – | Target package identifier. |
+| `lang` | `string` | `'en'` | Disclosure language. |
+
+The result contains separate `sharedData` and `collectedData` arrays of `DataSafetyItem`s, a list of high-level `securityPractices`, and an optional `privacyPolicyUrl`.
+
+### `categories(): Promise<string[]>`
+
+Scrape the public category directory and return category identifiers (e.g. `'APPLICATION'`, `'GAME_TRIVIA'`).
+
+### `memoized(options?: { maxAge?: number; max?: number }): PlayStoreApi`
+
+Wrap the API with an in-memory cache.
+
+| Option | Type | Default | Description |
+| --- | --- | --- | --- |
+| `maxAge` | `number` | `300_000` | Cache TTL in milliseconds. |
+| `max` | `number` | `1_000` | Maximum cache size; oldest entries are evicted first. |
+
+The returned object has the same surface as the default export (including a `memoized` method) but memoises every call.
+
+### Constants helper
+
+The default export re-exports structured enums under `constants` for convenience:
+
+- `constants.collection` – `TOP_FREE`, `TOP_PAID`, `GROSSING`.
+- `constants.category` – All Play categories (apps, games, family variants, etc.).
+- `constants.sort` – Review sort orders (`NEWEST`, `RATING`, `HELPFULNESS`).
+- `constants.age` – Age-range filters used by the family charts.
+- `constants.permission` – Permission buckets (`COMMON`, `OTHER`).
+- `constants.clusters` – Internal cluster identifiers used by list parsing utilities.
 
 ## Releases
 
