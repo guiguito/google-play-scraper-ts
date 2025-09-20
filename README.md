@@ -198,6 +198,31 @@ The default export exposes Play Store enumerations under `constants` for conveni
 
 - `constants.collection` – `TOP_FREE`, `TOP_PAID`, `GROSSING`
 - `constants.category` – All Play Store categories (`APPLICATION`, `GAME_MUSIC`, …)
+
+## Releases
+
+- Preflight checks before releasing:
+  - `npm run release:preflight` (lint, tests, type verification)
+- Publish (requires npm login and 2FA):
+  - Patch: `npm run release:patch`
+  - Minor: `npm run release:minor`
+  - Major: `npm run release:major`
+- Notes
+  - `prepack` builds automatically before pack/publish.
+  - For scoped packages (e.g. `@your-scope/google-play-scraper-ts`), publish with `--access public` (already included in release scripts).
+  - To validate after publish: install in a clean folder and require/import both CJS/ESM entries.
+
+## Debugging & Fixtures
+
+- Verbose debugging for `similar()` resolution:
+  - Set `GP_DEBUG=1` to print minimal breadcrumbs when the service-request cluster id is missing (e.g., container keys available).
+- UI tests (manual exploration):
+  - Build the library: `npm run build`
+  - Start the UI server: `LIVE=1 node ui-tests/server.js`
+  - Open the playground and use the forms to call each method.
+- Record live fixtures for `similar()` (optional):
+  - `LIVE=1 npm run build && node scripts/record-similar-fixture.js --appId com.spotify.music --lang en --country us --out tests/fixtures/similar`
+  - Re-run tests with fixture replay: `USE_FIXTURE=1 npm test`
 - `constants.sort` – Review sort order values
 - `constants.age`, `constants.permission`, plus other helpers
 

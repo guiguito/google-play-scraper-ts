@@ -1,6 +1,6 @@
 {
   "name": "google-play-scraper-ts",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "TypeScript rewrite of google-play-scraper with throttling, retries, and strong typing.",
   "keywords": [
     "google-play",
@@ -49,6 +49,7 @@
     "build:esm": "node node_modules/typescript/bin/tsc -p tsconfig.esm.json",
     "build:cjs": "node node_modules/typescript/bin/tsc -p tsconfig.cjs.json",
     "build": "npm run clean && npm run build:esm && node scripts/postbuild-esm.js && npm run build:cjs",
+    "prepack": "npm run build",
     "lint": "eslint . --ext .ts",
     "lint:fix": "eslint . --ext .ts --fix",
     "format": "prettier --write .",
@@ -56,7 +57,11 @@
     "test:coverage": "npm run build:cjs && node node_modules/nyc/bin/nyc.js node node_modules/mocha/bin/mocha --require tests/setup.js \"tests/*.spec.js\" \"tests/**/*.spec.js\" \"tests/**/*.spec.ts\"",
     "verify:types": "node node_modules/typescript/bin/tsc --module ES2020 --moduleResolution node --lib es2020,dom --types node --noEmit tests/types/usage.ts",
     "docs": "typedoc",
-    "prepublishOnly": "npm run lint && npm test && npm run build"
+    "prepublishOnly": "npm run lint && npm test && npm run build",
+    "release:preflight": "npm run lint && npm test && npm run verify:types",
+    "release:patch": "npm run release:preflight && npm version patch -m \"chore(release): %s\" && npm publish --access public",
+    "release:minor": "npm run release:preflight && npm version minor -m \"chore(release): %s\" && npm publish --access public",
+    "release:major": "npm run release:preflight && npm version major -m \"chore(release): %s\" && npm publish --access public"
   },
   "dependencies": {
     "cheerio": "^1.0.0-rc.12"
