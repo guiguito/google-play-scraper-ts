@@ -1,4 +1,5 @@
 import { constants } from './constants';
+import { configureProxy as applyProxyConfig, type ProxySettings } from './http/proxyConfig';
 import app from './modules/app';
 import list from './modules/list';
 import search, { type SearchOptions } from './modules/search';
@@ -35,6 +36,27 @@ const baseApi = {
 };
 
 export type PlayStoreApi = typeof baseApi & { memoized?: typeof memoized };
+
+export type {
+  ProxySettings,
+  ProxyConfig,
+  ProxyUrlDefinition,
+  ProxyDefinition,
+} from './http/proxyConfig';
+
+export interface CreatePlayStoreApiOptions {
+  proxies?: ProxySettings | null;
+  memoize?: MemoizeOptions;
+}
+
+export function configureProxies(settings?: ProxySettings | null): void {
+  applyProxyConfig(settings);
+}
+
+export function createPlayStoreApi(options?: CreatePlayStoreApiOptions): PlayStoreApi {
+  applyProxyConfig(options?.proxies ?? null);
+  return options?.memoize ? memoized(options.memoize) : { ...baseApi, memoized };
+}
 
 export function memoized(_opts?: MemoizeOptions): PlayStoreApi {
   const cache = new Map<string, { t: number; v: unknown }>();

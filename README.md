@@ -48,6 +48,31 @@ const topFreeMusic = await gplay.list({
 - Methods that accept `requestOptions` forward `requestOptions.headers` to the underlying HTTP client so you can inject cookies or additional headers (see per-method notes—`suggest` currently ignores the option for API parity).
 - Every function returns a Promise; runtime errors (invalid inputs, store shape changes, HTTP failures) surface as rejected promises.
 
+### Proxy routing
+
+- The HTTP client can route calls through HTTP(S) proxies keyed by country (ISO alpha-2, case-insensitive). If no per-country match is found, the optional `default` proxy is used instead of a direct connection.
+- Configure proxies once via `configureProxies(settings)` or construct an isolated client with `createPlayStoreApi({ proxies })`. All methods automatically opt into proxy usage—the `country` argument (or `gl` query param) determines the lookup.
+- HTTPS proxies are supported; pass `protocol: 'https'` or use an `https://` URL. To work with debugging gateways that present expired/self-signed certificates, set `rejectUnauthorized: false` (defaults to `true`).
+
+```ts
+import { createPlayStoreApi } from 'google-play-scraper-ts';
+
+const gplay = createPlayStoreApi({
+  proxies: {
+    default: { host: 'proxy.example', port: 8080 },
+    perCountry: {
+      us: { host: 'us-proxy.internal', port: 8080, auth: { username: 'user', password: 'secret' } },
+      fr: { url: 'http://fr-proxy.internal:8080' },
+      br: { url: 'https://br-proxy.internal:10443', rejectUnauthorized: false },
+    },
+  },
+});
+
+const result = await gplay.app({ appId: 'com.spotify.music', country: 'us' });
+```
+
+> Already instantiated clients can be updated in-place with `configureProxies(newSettings)`; pass `null` or omit entries to clear previously configured proxies.
+
 ## API reference
 
 All methods are asynchronous and resolve to typed results. The library mirrors the original [`google-play-scraper`](https://github.com/facundoolano/google-play-scraper) surface while enriching the responses with strict TypeScript types.

@@ -99,12 +99,12 @@ export async function list(opts: ListOptions) {
   let html: string;
   try {
     const dynBody = buildDynamicBody({ num: fullListOpts.num!, collection: clusterName, category });
-    html = await request({ url, method: 'POST', body: dynBody, headers });
+    html = await request({ url, method: 'POST', body: dynBody, headers, country: fullListOpts.country });
   } catch (e) {
     const err = e as HttpError;
     if (err && (err.status === 400 || err.status === 415)) {
       const legacy = getBodyForRequests({ num: fullListOpts.num!, collection: clusterName, category });
-      html = await request({ url, method: 'POST', body: legacy, headers });
+      html = await request({ url, method: 'POST', body: legacy, headers, country: fullListOpts.country });
     } else {
       throw e;
     }
@@ -113,7 +113,7 @@ export async function list(opts: ListOptions) {
   // If dynamic request returned a 200 but shape is unexpected or empty, retry with legacy body.
   if (!data) {
     const legacy = getBodyForRequests({ num: fullListOpts.num!, collection: clusterName, category });
-    const legacyHtml = await request({ url, method: 'POST', body: legacy, headers });
+    const legacyHtml = await request({ url, method: 'POST', body: legacy, headers, country: fullListOpts.country });
     data = parseBatchexecute(legacyHtml);
   }
   if (!data) return [] as AppListItem[];

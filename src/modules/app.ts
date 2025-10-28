@@ -20,7 +20,7 @@ export async function app(opts: AppOptions) {
   const params = new URLSearchParams({ id: opts.appId, hl: lang, gl: country });
   const reqUrl = `${BASE_URL}/store/apps/details?${params.toString()}`;
 
-  const html = await request({ url: reqUrl, method: 'GET', headers: opts.requestOptions?.headers });
+  const html = await request({ url: reqUrl, method: 'GET', headers: opts.requestOptions?.headers, country });
   const parse = (await import('../utils/scriptData')).default.parse; // avoid cycle
   const data = parse(html);
   const mapped = extractor(MAPPINGS)(data);

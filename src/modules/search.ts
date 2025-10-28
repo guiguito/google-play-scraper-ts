@@ -76,7 +76,7 @@ const mapSearchApp = scriptData.extractor<AppListItem>(APP_MAPPINGS);
 
 async function initialRequest(opts: SearchState) {
   const url = `${BASE_URL}/work/search?q=${opts.term}&hl=${opts.lang}&gl=${opts.country}&price=${opts.price}`;
-  const html = await request({ url, method: 'GET', headers: opts.requestOptions?.headers });
+  const html = await request({ url, method: 'GET', headers: opts.requestOptions?.headers, country: opts.country });
   return processFirstPage(html, opts, [], INITIAL_MAPPINGS);
 }
 

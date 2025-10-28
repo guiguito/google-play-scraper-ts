@@ -35,7 +35,7 @@ export async function similar(opts: SimilarOptions) {
   const qs = new URLSearchParams({ id: merged.appId, hl: merged.lang, gl: merged.country }).toString();
   const similarUrl = `${BASE_URL}/store/apps/details?${qs}`;
   const client = createClient();
-  const html = await client.request({ url: similarUrl, method: 'GET' });
+  const html = await client.request({ url: similarUrl, method: 'GET', country: merged.country });
   const parsed = scriptData.parse(html);
   return parseSimilarApps(parsed, merged, client);
 }
@@ -78,7 +78,7 @@ async function parseSimilarApps(
   if (!clusterUrl) throw new Error('Similar cluster URL not found');
 
   const fullClusterUrl = `${BASE_URL}${clusterUrl}&gl=${opts.country}&hl=${opts.lang}`;
-  const html = await client.request({ url: fullClusterUrl, method: 'GET' });
+  const html = await client.request({ url: fullClusterUrl, method: 'GET', country: opts.country });
   const parsed = scriptData.parse(html);
 
   // First cluster page has a different mapping than subsequent batchexecute pages.
@@ -92,7 +92,13 @@ async function parseSimilarApps(
     const { app } = await import('./app');
     return app({ appId, lang, country });
   };
-  return checkFinished({ num: 60, numberOfApps: 60, fullDetail: opts.fullDetail, lang: opts.lang, country: opts.country }, apps, token, appDetails, ({ url, method, headers, body }) => client.request({ url, method, headers, body } as any));
+  return checkFinished(
+    { num: 60, numberOfApps: 60, fullDetail: opts.fullDetail, lang: opts.lang, country: opts.country },
+    apps,
+    token,
+    appDetails,
+    ({ url, method, headers, body, country }) => client.request({ url, method, headers, body, country })
+  );
 }
 
 function isSimilarCluster(cluster: JsonValue | undefined) {

@@ -2,12 +2,18 @@ const { expect } = require('chai');
 const { EventEmitter } = require('node:events');
 const http = require('node:http');
 const https = require('node:https');
+const tls = require('node:tls');
 const { Headers: UndiciHeaders } = require('undici');
 const { request, createClient } = require('../dist/cjs/http/client.js');
 const { SimpleCookieJar } = require('../dist/cjs/http/cookies.js');
 const { HttpError } = require('../dist/cjs/errors.js');
+const { configureProxy, resetProxyConfiguration } = require('../dist/cjs/http/proxyConfig.js');
 
 const HeadersCtor = global.Headers || UndiciHeaders;
+
+afterEach(() => {
+  resetProxyConfiguration();
+});
 
 function stubRequests(responses) {
   const originals = { http: http.request, https: https.request };
@@ -78,6 +84,125 @@ describe('http/client request', () => {
       expect(err.body).to.equal('missing');
     }
     restore();
+  });
+});
+
+describe('proxy routing', () => {
+  it('routes http requests through a configured country proxy', async () => {
+    configureProxy({
+      perCountry: {
+        us: { host: 'proxy.test', port: 8080, auth: { username: 'user', password: 'pass' } },
+      },
+    });
+
+    let captured;
+    const restore = stubRequests([
+      { statusCode: 200, body: 'proxy-ok', inspect: (opts) => { captured = opts; } },
+    ]);
+
+    const body = await request({ url: 'http://example.test/resource?gl=us' });
+    expect(body).to.equal('proxy-ok');
+    expect(captured).to.be.an('object');
+    expect(captured.hostname).to.equal('proxy.test');
+    expect(captured.port).to.equal(8080);
+    expect(captured.path).to.equal('http://example.test/resource?gl=us');
+    expect(captured.headers.Host).to.equal('example.test');
+    expect(captured.headers['Proxy-Authorization']).to.equal('Basic dXNlcjpwYXNz');
+    restore();
+  });
+
+  it('falls back to default proxy when no country match exists', async () => {
+    configureProxy({
+      default: { host: 'proxy.test', port: 3128 },
+    });
+
+    let captured;
+    const restore = stubRequests([
+      { statusCode: 200, body: 'default-proxy', inspect: (opts) => { captured = opts; } },
+    ]);
+
+    const body = await request({ url: 'http://example.test/path', country: 'fr' });
+    expect(body).to.equal('default-proxy');
+    expect(captured.hostname).to.equal('proxy.test');
+    expect(captured.port).to.equal(3128);
+    expect(captured.path).to.equal('http://example.test/path');
+    restore();
+  });
+
+  it('establishes a CONNECT tunnel for https requests', async () => {
+    configureProxy({
+      perCountry: { us: { host: 'proxy.test', port: 8080 } },
+    });
+
+    const originals = { http: http.request, https: https.request, tls: tls.connect };
+    const fakeSocket = new EventEmitter();
+    fakeSocket.setTimeout = () => {};
+    fakeSocket.destroy = () => {};
+    fakeSocket.write = () => {};
+    fakeSocket.end = () => {};
+    fakeSocket.unshift = () => {};
+
+    const fakeTlsSocket = new EventEmitter();
+    fakeTlsSocket.setTimeout = () => {};
+    fakeTlsSocket.destroy = () => {};
+    fakeTlsSocket.write = () => {};
+    fakeTlsSocket.end = () => {};
+
+    let connectOptions;
+    let httpsOptions;
+    let createdSocket;
+
+    tls.connect = () => fakeTlsSocket;
+
+    http.request = (options) => {
+      if (options.method === 'CONNECT') {
+        connectOptions = options;
+        const req = new EventEmitter();
+        req.write = () => {};
+        req.setTimeout = () => {};
+        req.end = () => {
+          process.nextTick(() => {
+            req.emit('connect', { statusCode: 200, statusMessage: 'OK' }, fakeSocket, Buffer.alloc(0));
+          });
+        };
+        return req;
+      }
+      throw new Error('Unexpected http.request invocation during proxy CONNECT test');
+    };
+
+    https.request = (options, callback) => {
+      httpsOptions = options;
+      createdSocket = typeof options.createConnection === 'function' ? options.createConnection() : undefined;
+      const res = new EventEmitter();
+      res.statusCode = 200;
+      res.statusMessage = 'OK';
+      const req = new EventEmitter();
+      req.write = () => {};
+      req.setTimeout = () => {};
+      req.end = () => {
+        process.nextTick(() => {
+          callback(res);
+          res.emit('data', Buffer.from('via-connect'));
+          res.emit('end');
+        });
+      };
+      return req;
+    };
+
+    try {
+      const body = await request({ url: 'https://example.test/resource', country: 'us' });
+      expect(body).to.equal('via-connect');
+      expect(connectOptions.method).to.equal('CONNECT');
+      expect(connectOptions.hostname).to.equal('proxy.test');
+      expect(connectOptions.path).to.equal('example.test:443');
+      expect(httpsOptions.hostname).to.equal('example.test');
+      expect(httpsOptions.agent).to.equal(false);
+      expect(createdSocket).to.equal(fakeTlsSocket);
+    } finally {
+      http.request = originals.http;
+      https.request = originals.https;
+      tls.connect = originals.tls;
+    }
   });
 });
 

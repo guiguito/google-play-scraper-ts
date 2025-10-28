@@ -3,14 +3,14 @@ import { request } from '../http/client';
 import * as scriptData from '../utils/scriptData';
 import type { JsonValue } from '../types';
 
-export interface DataSafetyOptions { appId: string; lang?: string }
+export interface DataSafetyOptions { appId: string; lang?: string; country?: string }
 
 export async function datasafety(opts: DataSafetyOptions) {
   if (!opts || !opts.appId) throw new Error('appId missing');
   const PLAYSTORE_URL = `${BASE_URL}/store/apps/datasafety`;
   const searchParams = new URLSearchParams({ id: opts.appId, hl: opts.lang || 'en' });
   const reqUrl = `${PLAYSTORE_URL}?${searchParams}`;
-  const html = await request({ url: reqUrl, method: 'GET' });
+  const html = await request({ url: reqUrl, method: 'GET', country: opts.country });
   const parsed = scriptData.parse(html);
   const mapped = scriptData.extractor(MAPPINGS)(parsed);
   return mapped;

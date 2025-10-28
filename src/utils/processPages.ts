@@ -5,6 +5,14 @@ import { request } from '../http/client';
 import type { JsonValue } from '../types';
 import type { AppListItem } from './appList';
 
+type RequestExecutor = (args: {
+  url: string;
+  method: 'GET' | 'POST';
+  headers?: Record<string, string>;
+  body?: string;
+  country?: string;
+}) => Promise<string>;
+
 export interface ProcessMappings {
   apps: ReadonlyArray<string | number>;
   token: ReadonlyArray<string | number>;
@@ -67,7 +75,7 @@ export async function checkFinished<T>(
   savedApps: T[],
   nextToken: string | undefined,
   appDetails?: AppDetailsFn<T>,
-  requester?: (args: { url: string; method: 'GET' | 'POST'; headers?: Record<string,string>; body?: string }) => Promise<string>
+  requester?: RequestExecutor
 ): Promise<T[]> {
   if (savedApps.length >= opts.num || !nextToken) {
     return savedApps.slice(0, opts.num);
@@ -81,11 +89,11 @@ export async function checkFinished<T>(
     opts.requestOptions?.headers ?? {}
   );
 
-  const doRequest = requester
+  const doRequest: RequestExecutor = requester
     ? requester
-    : ({ url, method, headers, body }: { url: string; method: 'GET' | 'POST'; headers?: Record<string,string>; body?: string }) => request({ url, method, headers, body });
+    : ({ url, method, headers, body, country }) => request({ url, method, headers, body, country: country ?? opts.country });
 
-  const html = await doRequest({ url, method: 'POST', body, headers });
+  const html = await doRequest({ url, method: 'POST', body, headers, country: opts.country });
   const input = JSON.parse(html.substring(5)) as JsonValue;
   const batchEntry = Array.isArray(input) && Array.isArray(input[0]) ? input[0] : undefined;
   const rawData = Array.isArray(batchEntry) ? batchEntry[2] : undefined;

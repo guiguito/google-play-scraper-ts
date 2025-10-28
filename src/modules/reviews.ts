@@ -143,7 +143,7 @@ function makeReviewsRequest(
   const body = getBodyForRequests({ appId: opts.appId, sort: opts.sort, withToken: nextToken, requestType: opts.requestType });
   const url = `${BASE_URL}/_/PlayStoreUi/data/batchexecute?rpcids=qnKhOb&f.sid=-697906427155521722&bl=boq_playuiserver_20190903.08_p0&hl=${opts.lang}&gl=${opts.country}&authuser&soc-app=121&soc-platform=1&soc-device=1&_reqid=1065213`;
   const headers = { 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8' };
-  return request({ url, method: 'POST', body, headers }).then((html) => {
+  return request({ url, method: 'POST', body, headers, country: opts.country }).then((html) => {
     const input = JSON.parse(html.substring(5)) as JsonValue;
     const raw = Array.isArray(input) && Array.isArray(input[0]) ? input[0][2] : undefined;
     const data = typeof raw === 'string' ? (JSON.parse(raw) as JsonValue | null) : null;

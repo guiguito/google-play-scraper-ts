@@ -17,7 +17,7 @@ export async function suggest(opts: SuggestOptions) {
   const term = encodeURIComponent(opts.term);
   const body = `f.req=%5B%5B%5B%22IJ4APc%22%2C%22%5B%5Bnull%2C%5B%5C%22${term}%5C%22%5D%2C%5B10%5D%2C%5B2%5D%2C4%5D%5D%22%5D%5D%5D`;
   const headers = { 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8' };
-  const html = await request({ url, method: 'POST', body, headers });
+  const html = await request({ url, method: 'POST', body, headers, country });
   const input = JSON.parse(html.substring(5)) as JsonValue;
   const payload = Array.isArray(input) && Array.isArray(input[0]) ? input[0][2] : undefined;
   const data = typeof payload === 'string' ? (JSON.parse(payload) as JsonValue) : null;

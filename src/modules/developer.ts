@@ -24,7 +24,7 @@ export async function developer(opts: DeveloperOptions) {
   if (!opts.devId) throw new Error('devId missing');
   const merged = Object.assign({ num: 60, lang: 'en', country: 'us' }, opts);
   const url = buildUrl(merged);
-  const html = await request({ url, method: 'GET' });
+  const html = await request({ url, method: 'GET', country: merged.country });
   const parsed = scriptData.parse(html);
   return parseDeveloperApps(parsed, { ...merged, fullDetail: !!merged.fullDetail });
 }
