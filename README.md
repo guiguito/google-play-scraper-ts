@@ -266,7 +266,13 @@ Search the Play Store catalogue.
 | `price` | `'all' \| 'free' \| 'paid'` | `'all'` | Price filter. |
 | `requestOptions` | `{ headers?: Record<string, string> }` | – | Forwarded headers for the search request. |
 
-Returns `AppSummary` results or `AppDetails` objects when `fullDetail` is set.
+Results mirror the modern `/store/search` layout (including single-result pages). When `fullDetail` is enabled each result is re-fetched via `app()`.
+
+> **Need the legacy “global” feed?** Use `searchGlobal(options)` to call the former `/work/search` endpoint. Its options match `search()`, but expect geo-neutral results unless you route traffic through a country proxy.
+
+### `searchGlobal(options): Promise<AppSummary[] \| AppDetails[]>`
+
+Back-compat wrapper around the legacy `/work/search` flow. Accepts the same options as `search()` and returns identical payload shapes. Pagination still uses the shared batchexecute endpoint, but the initial page reflects Google’s global results regardless of the `country` parameter.
 
 ### `suggest(options): Promise<string[]>`
 
@@ -434,6 +440,7 @@ LIVE=1 node ui-tests/server.js
 ```
 
 > The playground uses the production ESM output (`dist/esm/index.js`). If you want live data, export `LIVE=1` before launching the server so the underlying API calls can reach Google Play.
+> The search form includes a “Result source” toggle so you can compare the modern `/store/search` flow with the legacy `/work/search` results—pair it with the proxy panel to verify country-specific behaviour.
 
 ## Contributing
 
