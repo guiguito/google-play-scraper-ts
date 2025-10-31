@@ -429,18 +429,13 @@ npm run verify:types
 
 ### Manual UI testing playground
 
-For quick manual exploration, a minimal web UI lives under `ui-tests/` and loads the compiled ESM bundle directly in the browser.
+Looking for the interactive UI harness? It now lives in a standalone repository with prebuilt assets and GitHub Pages hosting:
 
-```bash
-# from the repo root
-npm run build                 # make sure dist/esm is up to date
-LIVE=1 node ui-tests/server.js
+- GitHub repo: [`google-play-scraper-ts-ui-tests`](https://github.com/Guiguito/google-play-scraper-ts-ui-tests)
+- Hosted playground: https://guiguito.github.io/google-play-scraper-ts-ui-tests/
 
-# open http://localhost:5173 in your browser and run the forms
-```
+The hosted version always targets the latest npm release of this package. It includes the search-mode toggle (modern `/store/search` vs. legacy `/work/search`) and the enhanced proxy configuration panel (per-country entries, auth, TLS validation overrides), plus a direct Play Store link for each query so you can inspect the underlying page.
 
-> The playground uses the production ESM output (`dist/esm/index.js`). If you want live data, export `LIVE=1` before launching the server so the underlying API calls can reach Google Play.
-> The search form includes a “Result source” toggle so you can compare the modern `/store/search` flow with the legacy `/work/search` results—pair it with the proxy panel to verify country-specific behaviour.
 
 ## Contributing
 
