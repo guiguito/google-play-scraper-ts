@@ -204,7 +204,7 @@ function describeProxyDefinition(definition) {
 function safeParseUrl(raw) {
   try {
     return new URL(raw);
-  } catch (_error) {
+  } catch {
     return null;
   }
 }

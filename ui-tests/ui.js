@@ -630,6 +630,15 @@ function formatCount(count) {
   return String(count);
 }
 
+function safeJsonParse(text) {
+  if (!text) return {};
+  try {
+    return JSON.parse(text);
+  } catch {
+    return {};
+  }
+}
+
 function resolvePreviewLink(context) {
   if (!context || context.method !== 'search') return null;
   const opts = context.options || {};
@@ -802,11 +811,7 @@ async function submitProxyConfiguration(form, rowsContainer, summaryEl, feedback
     });
     const text = await response.text();
     let payload = {};
-    try {
-      payload = text ? JSON.parse(text) : {};
-    } catch (_error) {
-      payload = {};
-    }
+    payload = safeJsonParse(text);
     if (!response.ok) {
       throw new Error(payload.error || response.statusText);
     }
@@ -824,12 +829,7 @@ async function disableProxyConfiguration(form, rowsContainer, summaryEl, feedbac
     const response = await fetch('/proxy', { method: 'DELETE' });
     if (!response.ok) {
       const text = await response.text();
-      let payload = {};
-      try {
-        payload = text ? JSON.parse(text) : {};
-      } catch (_error) {
-        payload = {};
-      }
+      const payload = safeJsonParse(text);
       throw new Error(payload.error || response.statusText);
     }
     proxyStatus = { enabled: false };
