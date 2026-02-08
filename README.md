@@ -261,7 +261,7 @@ Search the Play Store catalogue.
 | `term` | `string` | – | Search query (required). |
 | `lang` | `string` | `'en'` | Metadata language. |
 | `country` | `string` | `'us'` | Storefront country. |
-| `num` | `number` | `20` | Maximum results (hard limit 250). |
+| `num` | `number` | `20` | Requested maximum results (`<= 250` validated). Modern `/store/search` responses are currently capped by Play to roughly 60 results per query. |
 | `fullDetail` | `boolean` | `false` | When true, hydrate each match via `app()`. |
 | `price` | `'all' \| 'free' \| 'paid'` | `'all'` | Price filter. |
 | `requestOptions` | `{ headers?: Record<string, string> }` | – | Forwarded headers for the search request. |

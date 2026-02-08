@@ -65,9 +65,16 @@ const REQUEST_MAPPINGS: ProcessMappings = {
   token: [0, 0, 7, 1],
 };
 
+const MAX_BATCH_PAGE_SIZE = 200;
+
 function getBodyForRequests({ numberOfApps = 100, withToken = '%token%' }) {
   const body = `f.req=%5B%5B%5B%22qnKhOb%22%2C%22%5B%5Bnull%2C%5B%5B10%2C%5B10%2C${numberOfApps}%5D%5D%2Ctrue%2Cnull%2C%5B96%2C27%2C4%2C8%2C57%2C30%2C110%2C79%2C11%2C16%2C49%2C1%2C3%2C9%2C12%2C104%2C55%2C56%2C51%2C10%2C34%2C77%5D%5D%2Cnull%2C%5C%22${withToken}%5C%22%5D%5D%22%2Cnull%2C%22generic%22%5D%5D%5D`;
   return body;
+}
+
+function getBatchPageSize(numberOfApps: number) {
+  if (!Number.isFinite(numberOfApps) || numberOfApps < 1) return MAX_BATCH_PAGE_SIZE;
+  return Math.min(Math.floor(numberOfApps), MAX_BATCH_PAGE_SIZE);
 }
 
 export async function checkFinished<T>(
@@ -81,7 +88,7 @@ export async function checkFinished<T>(
     return savedApps.slice(0, opts.num);
   }
 
-  const body = getBodyForRequests({ numberOfApps: opts.numberOfApps, withToken: nextToken });
+  const body = getBodyForRequests({ numberOfApps: getBatchPageSize(opts.numberOfApps), withToken: nextToken });
   const url = `${BASE_URL}/_/PlayStoreUi/data/batchexecute?rpcids=qnKhOb&f.sid=-697906427155521722&bl=boq_playuiserver_20190903.08_p0&hl=${opts.lang}&gl=${opts.country}&authuser&soc-app=121&soc-platform=1&soc-device=1&_reqid=1065213`;
 
   const headers = Object.assign(

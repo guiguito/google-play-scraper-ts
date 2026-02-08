@@ -28,6 +28,13 @@ interface SearchState {
   requestOptions?: { headers?: Record<string, string> };
 }
 
+const STORE_RPC_ID = 'lGYRle';
+const STORE_RPC_DEFAULT_PAGE_SIZE = 20;
+const STORE_RPC_MAX_PAGE_SIZE = 60;
+const STORE_RPC_REQID = '1065213';
+const STORE_RPC_FALLBACK_SID = '-697906427155521722';
+const STORE_RPC_FALLBACK_BL = 'boq_playuiserver_20190903.08_p0';
+
 const GLOBAL_INITIAL_MAPPINGS = {
   apps: ['ds:1', 0, 1, 0, 0, 0] as const,
   sections: ['ds:1', 0, 1, 0, 0] as const,
@@ -168,6 +175,71 @@ function dedupeByAppId(apps: AppListItem[]): AppListItem[] {
   return result;
 }
 
+function clampStoreRequestSize(num: number) {
+  if (!Number.isFinite(num) || num < 1) return STORE_RPC_DEFAULT_PAGE_SIZE;
+  return Math.min(Math.floor(num), STORE_RPC_MAX_PAGE_SIZE);
+}
+
+function parseWizGlobalData(html: string) {
+  const match = html.match(/WIZ_global_data\s*=\s*(\{[\s\S]*?\});/);
+  if (!match) return { sid: STORE_RPC_FALLBACK_SID, bl: STORE_RPC_FALLBACK_BL };
+  try {
+    const parsed = JSON.parse(match[1]) as Record<string, unknown>;
+    const sid = String(parsed.FdrFJe ?? STORE_RPC_FALLBACK_SID);
+    const bl = typeof parsed.cfb2h === 'string' ? parsed.cfb2h : STORE_RPC_FALLBACK_BL;
+    return { sid, bl };
+  } catch {
+    return { sid: STORE_RPC_FALLBACK_SID, bl: STORE_RPC_FALLBACK_BL };
+  }
+}
+
+function cloneJson<T extends JsonValue>(value: T): T {
+  return JSON.parse(JSON.stringify(value)) as T;
+}
+
+function getStoreRequestDescriptor(parsed: JsonValue) {
+  const rpcId = scriptData.getPathValue(parsed, ['serviceRequestData', 'ds:4', 'id']);
+  if (rpcId !== STORE_RPC_ID) return undefined;
+  const requestDescriptor = scriptData.getPathValue(parsed, ['serviceRequestData', 'ds:4', 'request']);
+  return Array.isArray(requestDescriptor) ? cloneJson(requestDescriptor) : undefined;
+}
+
+function setStoreRequestSize(requestDescriptor: JsonValue, size: number) {
+  if (!Array.isArray(requestDescriptor)) return false;
+  const rootRequest = requestDescriptor[0];
+  if (!Array.isArray(rootRequest)) return false;
+  const config = rootRequest[1];
+  if (!Array.isArray(config)) return false;
+  const pageSpec = config[0];
+  if (!Array.isArray(pageSpec)) return false;
+  const pageSizeTuple = pageSpec[1];
+  if (!Array.isArray(pageSizeTuple)) return false;
+  pageSizeTuple[1] = size;
+  return true;
+}
+
+function buildStoreRpcBody(requestDescriptor: JsonValue) {
+  const payload = JSON.stringify([[[STORE_RPC_ID, JSON.stringify(requestDescriptor), null, 'generic']]]);
+  return `f.req=${encodeURIComponent(payload)}`;
+}
+
+function buildStoreRpcUrl(opts: SearchState, html: string) {
+  const { sid, bl } = parseWizGlobalData(html);
+  return `${BASE_URL}/_/PlayStoreUi/data/batchexecute?rpcids=${STORE_RPC_ID}&f.sid=${encodeURIComponent(sid)}&bl=${encodeURIComponent(bl)}&hl=${opts.lang}&gl=${opts.country}&authuser&soc-app=121&soc-platform=1&soc-device=1&_reqid=${STORE_RPC_REQID}`;
+}
+
+function parseStoreRpcResponse(body: string): JsonValue | null {
+  const input = JSON.parse(body.substring(5)) as JsonValue;
+  const row = Array.isArray(input) && Array.isArray(input[0]) ? input[0] : undefined;
+  const rawData = Array.isArray(row) ? row[2] : undefined;
+  if (typeof rawData !== 'string') return null;
+  return JSON.parse(rawData) as JsonValue;
+}
+
+function extractStoreResultsFromDs4(data: JsonValue) {
+  return extractStoreResults({ 'ds:4': data } as unknown as JsonValue);
+}
+
 function mapStoreListApp(raw: JsonValue | undefined): AppListItem | undefined {
   const data = scriptData.getPathValue(raw ?? null, [0]);
   if (!Array.isArray(data)) return undefined;
@@ -272,19 +344,32 @@ async function initialStoreRequest(opts: SearchState) {
 
 async function processStoreFirstPage(html: string | JsonValue, opts: SearchState): Promise<AppListItem[]> {
   const parsed = typeof html === 'string' ? scriptData.parse(html) : html;
-  const { apps, token } = extractStoreResults(parsed);
-  return checkFinished(
-    {
-      num: opts.num,
-      numberOfApps: opts.num,
-      fullDetail: opts.fullDetail,
-      lang: opts.lang,
-      country: opts.country,
-      requestOptions: opts.requestOptions,
-    },
-    apps,
-    token
+  const { apps: firstPageApps } = extractStoreResults(parsed);
+  if (firstPageApps.length >= opts.num) return firstPageApps.slice(0, opts.num);
+  if (typeof html !== 'string') return firstPageApps.slice(0, opts.num);
+
+  const requestDescriptor = getStoreRequestDescriptor(parsed);
+  if (!requestDescriptor) return firstPageApps.slice(0, opts.num);
+  const pageSize = clampStoreRequestSize(opts.num);
+  if (!setStoreRequestSize(requestDescriptor, pageSize)) return firstPageApps.slice(0, opts.num);
+
+  const url = buildStoreRpcUrl(opts, html);
+  const body = buildStoreRpcBody(requestDescriptor);
+  const headers = Object.assign(
+    { 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8' },
+    opts.requestOptions?.headers ?? {}
   );
+
+  try {
+    const rpcHtml = await request({ url, method: 'POST', headers, body, country: opts.country });
+    const rpcData = parseStoreRpcResponse(rpcHtml);
+    if (rpcData === null) return firstPageApps.slice(0, opts.num);
+    const { apps: rpcApps } = extractStoreResultsFromDs4(rpcData);
+    const merged = dedupeByAppId([...firstPageApps, ...rpcApps]);
+    return merged.slice(0, opts.num);
+  } catch {
+    return firstPageApps.slice(0, opts.num);
+  }
 }
 
 async function fetchFullDetailResults<R>(

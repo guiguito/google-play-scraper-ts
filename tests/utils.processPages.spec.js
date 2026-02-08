@@ -70,4 +70,33 @@ describe('utils/processPages', () => {
     expect(result[1].appId).to.equal('com.second');
     scope.done();
   });
+
+  it('caps batchexecute page size to 200 when higher values are requested', async () => {
+    const entry = buildListEntry({ title: 'Second', appId: 'com.second' });
+    const payload = [];
+    payload[0] = [];
+    payload[0][0] = [];
+    payload[0][0][0] = [entry];
+    payload[0][0][7] = [];
+    payload[0][0][7][1] = null;
+
+    const response = `)]}'\n${JSON.stringify([[null, null, JSON.stringify(payload)]])}`;
+
+    const scope = nock(BASE_URL)
+      .post(/\/batchexecute/, (body) => {
+        const serialized = typeof body === 'string' ? body : JSON.stringify(body);
+        return serialized.includes('[10,[10,200]]') && !serialized.includes('[10,[10,250]]');
+      })
+      .reply(200, response, { 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8' });
+
+    const result = await checkFinished(
+      { num: 250, numberOfApps: 250, fullDetail: false, lang: 'en', country: 'us' },
+      [{ appId: 'com.first', title: 'First' }],
+      'TOKEN'
+    );
+
+    expect(result).to.have.length(2);
+    expect(result[1].appId).to.equal('com.second');
+    scope.done();
+  });
 });

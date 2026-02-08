@@ -5,32 +5,43 @@ const searchModule = require('../dist/cjs/modules/search.js');
 
 const search = searchModule.default;
 
-function buildListHtml() {
+function buildStoreListItem({
+  appId = 'com.test.app',
+  title = 'My App',
+  icon = 'https://example.com/icon.png',
+  developer = 'DevCo',
+  scoreText = '4.5',
+  score = 4.5,
+  currency = 'USD',
+  summary = 'Summary<br>line',
+  installLabel = 'Install',
+} = {}) {
   const item = [];
-  item[0] = ['com.test.app', 7];
-  item[1] = [null, 2, [512, 512], [null, null, 'https://example.com/icon.png']];
-  item[3] = 'My App';
-  item[4] = ['4.5', 4.5];
-  item[8] = [null, [[0, 'USD', '']]];
-  item[10] = [null, null, null, null, ['', '', '/store/apps/details?id=com.test.app']];
-  item[13] = [null, 'Summary<br>line'];
-  item[14] = 'DevCo';
+  item[0] = [appId, 7];
+  item[1] = [null, 2, [512, 512], [null, null, icon]];
+  item[3] = title;
+  item[4] = [scoreText, score];
+  item[8] = [null, [[0, currency, '']]];
+  item[10] = [null, null, null, null, ['', '', `/store/apps/details?id=${appId}`]];
+  item[13] = [null, summary];
+  item[14] = developer;
   item[25] = [
     [
-      [null, ['Install']],
+      [null, [installLabel]],
     ],
   ];
+  return item;
+}
 
+function buildStoreListDs4(items, token = null) {
   const listCluster = [];
   listCluster[22] = [
-    [
-      [item],
-    ],
+    items.map((item) => [item]),
     [
       '',
       null,
       null,
-      [null, 'TOKEN123'],
+      token ? [null, token] : null,
       1,
     ],
   ];
@@ -42,7 +53,27 @@ function buildListHtml() {
     ],
   ];
 
-  return `<script>AF_initDataCallback({key: 'ds:4', data: ${JSON.stringify(ds4)}, sideChannel: {}});</script>`;
+  return ds4;
+}
+
+function buildStoreSearchHtml({
+  ds4,
+  includeRpcDescriptor = false,
+  requestDescriptor = null,
+  wizGlobalData = { FdrFJe: '-123456789', cfb2h: 'boq_playuiserver_20990101.00_p0' },
+} = {}) {
+  const ds4Script = `<script>AF_initDataCallback({key: 'ds:4', data: ${JSON.stringify(ds4)}, sideChannel: {}});</script>`;
+  if (!includeRpcDescriptor || !requestDescriptor) return ds4Script;
+  const wizScript = `<script>WIZ_global_data = ${JSON.stringify(wizGlobalData)};</script>`;
+  const serviceRequests =
+    `<script>; var AF_dataServiceRequests = {'ds:4': {id: 'lGYRle', request: ${JSON.stringify(requestDescriptor)}}};` +
+    ' var AF_initDataChunkQueue = []; </script>';
+  return `${wizScript}${serviceRequests}${ds4Script}`;
+}
+
+function buildListHtml() {
+  const ds4 = buildStoreListDs4([buildStoreListItem()], 'TOKEN123');
+  return buildStoreSearchHtml({ ds4 });
 }
 
 function buildSingleHtml() {
@@ -156,5 +187,61 @@ describe('modules/search', () => {
     expect(res[0].icon).to.equal('https://example.com/single-icon.png');
     expect(res[0].developerId).to.equal('SingleDev');
     scope.done();
+  });
+
+  it('uses modern store RPC when descriptor is available and caps requested page size to 60', async () => {
+    const firstPageDs4 = buildStoreListDs4([buildStoreListItem({ appId: 'com.first' })], null);
+    const requestDescriptor = [[[], [[8, [20, 20]]], ['test'], 4, [null, 1], null, null, [], [1]], [1]];
+    const html = buildStoreSearchHtml({ ds4: firstPageDs4, includeRpcDescriptor: true, requestDescriptor });
+
+    const rpcDs4 = buildStoreListDs4(
+      [
+        buildStoreListItem({ appId: 'com.first' }),
+        buildStoreListItem({ appId: 'com.second', title: 'Second App', developer: 'Second Dev' }),
+        buildStoreListItem({ appId: 'com.third', title: 'Third App', developer: 'Third Dev' }),
+      ],
+      null
+    );
+    const rpcResponse = `)]}'\n${JSON.stringify([['wrb.fr', 'lGYRle', JSON.stringify(rpcDs4), null, null, null, 'generic']])}`;
+
+    const getScope = nock(BASE_URL)
+      .get((uri) => uri.startsWith('/store/search'))
+      .reply(200, html, { 'Content-Type': 'text/html' });
+
+    const postScope = nock(BASE_URL)
+      .post((uri) => uri.startsWith('/_/PlayStoreUi/data/batchexecute?rpcids=lGYRle'), (body) => {
+        const serialized = typeof body === 'string' ? decodeURIComponent(body) : JSON.stringify(body);
+        return serialized.includes('lGYRle') && serialized.includes('[20,60]');
+      })
+      .reply(200, rpcResponse, { 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8' });
+
+    const res = await search(() => Promise.resolve(), { term: 'test', num: 200, lang: 'en', country: 'us' });
+    expect(res).to.have.lengthOf(3);
+    expect(res.map((item) => item.appId)).to.deep.equal(['com.first', 'com.second', 'com.third']);
+
+    getScope.done();
+    postScope.done();
+  });
+
+  it('falls back to first page when modern store RPC returns no payload', async () => {
+    const firstPageDs4 = buildStoreListDs4([buildStoreListItem({ appId: 'com.first' })], null);
+    const requestDescriptor = [[[], [[8, [20, 20]]], ['test'], 4, [null, 1], null, null, [], [1]], [1]];
+    const html = buildStoreSearchHtml({ ds4: firstPageDs4, includeRpcDescriptor: true, requestDescriptor });
+    const rpcError = `)]}'\n${JSON.stringify([['wrb.fr', 'lGYRle', null, null, null, [3], 'generic']])}`;
+
+    const getScope = nock(BASE_URL)
+      .get((uri) => uri.startsWith('/store/search'))
+      .reply(200, html, { 'Content-Type': 'text/html' });
+
+    const postScope = nock(BASE_URL)
+      .post((uri) => uri.startsWith('/_/PlayStoreUi/data/batchexecute?rpcids=lGYRle'))
+      .reply(200, rpcError, { 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8' });
+
+    const res = await search(() => Promise.resolve(), { term: 'test', num: 3, lang: 'en', country: 'us' });
+    expect(res).to.have.lengthOf(1);
+    expect(res[0].appId).to.equal('com.first');
+
+    getScope.done();
+    postScope.done();
   });
 });
