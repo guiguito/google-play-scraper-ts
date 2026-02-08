@@ -1,6 +1,6 @@
 {
   "name": "google-play-scraper-ts",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "description": "TypeScript rewrite of google-play-scraper with throttling, retries, and strong typing.",
   "keywords": [
     "google-play",
