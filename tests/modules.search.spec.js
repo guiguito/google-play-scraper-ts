@@ -76,7 +76,11 @@ function buildListHtml() {
   return buildStoreSearchHtml({ ds4 });
 }
 
-function buildSingleHtml() {
+function buildSingleHtml(options = {}) {
+  const summary = Object.prototype.hasOwnProperty.call(options, 'summary')
+    ? options.summary
+    : 'Single summary';
+  const description = options.description;
   const single = [];
   single[0] = ['Unique App'];
   single[41] = [[null, null, '/store/apps/details?id=com.unique.app']];
@@ -93,7 +97,12 @@ function buildSingleHtml() {
   single[68][1] = [];
   single[68][1][4] = [];
   single[68][1][4][2] = '/store/apps/developer?id=SingleDev';
-  single[73] = [[null, 'Single summary']];
+  if (summary !== undefined) {
+    single[73] = [[null, summary]];
+  }
+  if (description !== undefined) {
+    single[72] = [[null, description]];
+  }
   single[95] = [
     [
       null,
@@ -167,6 +176,25 @@ describe('modules/search', () => {
     scope.done();
   });
 
+  it('backfills missing summary with app details when fullDetail is false', async () => {
+    const html = buildSingleHtml({ summary: undefined, description: 'This is the full app description' });
+
+    const scope = nock(BASE_URL)
+      .get((uri) => uri.startsWith('/store/search'))
+      .reply(200, html, { 'Content-Type': 'text/html' });
+
+    const calls = [];
+    const res = await search(async (args) => {
+      calls.push(args);
+      return { summary: 'Tap to pay with your phone' };
+    }, { term: 'wallet', num: 1, lang: 'en', country: 'us', fullDetail: false });
+
+    expect(calls).to.deep.equal([{ appId: 'com.unique.app', lang: 'en', country: 'us' }]);
+    expect(res).to.have.lengthOf(1);
+    expect(res[0].summary).to.equal('Tap to pay with your phone');
+    scope.done();
+  });
+
   it('handles single result layout', async () => {
     const html = buildSingleHtml();
 
@@ -186,6 +214,19 @@ describe('modules/search', () => {
     expect(res[0].score).to.equal(4.7);
     expect(res[0].icon).to.equal('https://example.com/single-icon.png');
     expect(res[0].developerId).to.equal('SingleDev');
+    scope.done();
+  });
+
+  it('does not use full description as summary when single-result summary is missing', async () => {
+    const html = buildSingleHtml({ summary: undefined, description: 'This is the full app description' });
+
+    const scope = nock(BASE_URL)
+      .get((uri) => uri.startsWith('/store/search'))
+      .reply(200, html, { 'Content-Type': 'text/html' });
+
+    const res = await search(() => Promise.resolve(), { term: 'unique', num: 1, lang: 'en', country: 'us' });
+    expect(res).to.have.lengthOf(1);
+    expect(res[0].summary).to.equal(undefined);
     scope.done();
   });
 

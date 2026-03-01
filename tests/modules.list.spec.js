@@ -160,4 +160,45 @@ describe('modules/list', () => {
     listScope.done();
     appScope.done();
   });
+
+  it('backfills missing summary from app details when fullDetail is false', async () => {
+    const item = buildListItem();
+    item[0][0] = ['com.google.android.apps.walletnfcrel'];
+    item[0][13] = [null, null];
+
+    const data = buildCollectionPayload([item]);
+    const input = [[null, null, JSON.stringify(data)]];
+    const body = `x\ny\nz\n${JSON.stringify(input)}\n`;
+
+    const listScope = nock(BASE_URL)
+      .post(/\/batchexecute/)
+      .reply(200, body, { 'Content-Type': 'text/plain' });
+
+    const details = [];
+    details[1] = [];
+    details[1][2] = [];
+    details[1][2][0] = [];
+    details[1][2][0][0] = 'Google Wallet';
+    details[1][2][73] = [[null, 'Fast, secure payments and passes']];
+
+    const appHtml = `<script>AF_initDataCallback({key: 'ds:5', data: ${JSON.stringify(details)}, sideChannel: {}});</script>`;
+    const appScope = nock(BASE_URL)
+      .get(uri => uri.startsWith('/store/apps/details'))
+      .reply(200, appHtml, { 'Content-Type': 'text/html' });
+
+    const res = await list({
+      category: constants.category.APPLICATION,
+      collection: constants.collection.TOP_FREE,
+      num: 1,
+      lang: 'en',
+      country: 'us',
+      fullDetail: false,
+    });
+
+    expect(res).to.have.length(1);
+    expect(res[0].appId).to.equal('com.google.android.apps.walletnfcrel');
+    expect(res[0].summary).to.equal('Fast, secure payments and passes');
+    listScope.done();
+    appScope.done();
+  });
 });

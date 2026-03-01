@@ -2,6 +2,8 @@ import { BASE_URL } from '../constants';
 import { request } from '../http/client';
 import * as scriptData from '../utils/scriptData';
 import { checkFinished } from '../utils/processPages';
+import helper from '../utils/mappingHelpers';
+import { hydrateMissingSummaries } from '../utils/hydrateMissingSummaries';
 import type { JsonValue } from '../types';
 import type { AppListItem } from '../utils/appList';
 
@@ -38,7 +40,7 @@ const TEXT_MAPPINGS = {
   currency: { path: [0, 8, 1, 0, 1], fun: asString },
   price: { path: [0, 8, 1, 0, 0], fun: microToPrice },
   free: { path: [0, 8, 1, 0, 0], fun: isFreePrice },
-  summary: { path: [0, 13, 1], fun: asString },
+  summary: { path: [0, 13], fun: helper.summaryText },
   scoreText: { path: [0, 4, 0], fun: asString },
   score: { path: [0, 4, 1], fun: asNumber },
 } satisfies scriptData.GenericMappings;
@@ -52,7 +54,7 @@ const NUMERIC_MAPPINGS = {
   currency: { path: [8, 1, 0, 1], fun: asString },
   price: { path: [8, 1, 0, 0], fun: microToPrice },
   free: { path: [8, 1, 0, 0], fun: isFreePrice },
-  summary: { path: [13, 1], fun: asString },
+  summary: { path: [13], fun: helper.summaryText },
   scoreText: { path: [4, 0], fun: asString },
   score: { path: [4, 1], fun: asNumber },
 } satisfies scriptData.GenericMappings;
@@ -90,11 +92,17 @@ async function parseDeveloperApps(html: JsonValue, opts: { devId: string; num: n
   const processedApps = Array.isArray(appsSection) ? appsSection.map((entry) => mapApp(entry)) : [];
   const tokenValue = scriptData.getPathValue(parsed, initialMappings.token);
   const token = typeof tokenValue === 'string' ? tokenValue : undefined;
-  return checkFinished(
+  const apps = await checkFinished(
     { num: opts.num, numberOfApps: opts.num, fullDetail: opts.fullDetail, lang: opts.lang, country: opts.country },
     processedApps,
     token
   );
+  if (opts.fullDetail) return apps;
+  const fetchDetails = async ({ appId, lang, country }: { appId: string; lang: string; country: string }) => {
+    const { app } = await import('./app');
+    return app({ appId, lang, country });
+  };
+  return hydrateMissingSummaries(apps, { lang: opts.lang, country: opts.country }, fetchDetails);
 }
 
 export default developer;

@@ -2,6 +2,8 @@ import { BASE_URL, constants } from '../constants';
 import { request } from '../http/client';
 import { HttpError } from '../errors';
 import * as scriptData from '../utils/scriptData';
+import helper from '../utils/mappingHelpers';
+import { hydrateMissingSummaries } from '../utils/hydrateMissingSummaries';
 import type { JsonValue } from '../types';
 import type { AppListItem } from '../utils/appList';
 
@@ -49,7 +51,7 @@ const APPS_MAPPINGS = {
   currency: { path: [0, 8, 1, 0, 1], fun: asString },
   price: { path: [0, 8, 1, 0, 0], fun: microToPrice },
   free: { path: [0, 8, 1, 0, 0], fun: isFreePrice },
-  summary: { path: [0, 13, 1], fun: asString },
+  summary: { path: [0, 13], fun: helper.summaryText },
   scoreText: { path: [0, 4, 0], fun: asString },
   score: { path: [0, 4, 1], fun: asNumber },
 } satisfies scriptData.GenericMappings;
@@ -131,7 +133,11 @@ export async function list(opts: ListOptions) {
         .map((item) => app({ appId: item.appId, lang: fullListOpts.lang!, country: fullListOpts.country! }))
     );
   }
-  return processedApps;
+  const fetchDetails = async ({ appId, lang, country }: { appId: string; lang: string; country: string }) => {
+    const { app } = await import('./app');
+    return app({ appId, lang, country });
+  };
+  return hydrateMissingSummaries(processedApps, { lang: fullListOpts.lang!, country: fullListOpts.country! }, fetchDetails);
 }
 
 function parseBatchexecute(html: string): JsonValue | null {

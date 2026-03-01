@@ -41,6 +41,18 @@ describe('utils/mappingHelpers', () => {
     expect(helpers.descriptionHtmlLocalized(fallback)).to.equal('Original description');
   });
 
+  it('extracts subtitle-like summary from summary container', () => {
+    const field = [];
+    field[0] = 'Install. Play. Enjoy.';
+    field[1] = 'Install. Play. Enjoy. This long text keeps going and looks like a full description paragraph rather than a subtitle line users expect in cards.';
+    expect(helpers.summaryText(field)).to.equal('Install. Play. Enjoy.');
+  });
+
+  it('returns undefined for description-like summary blobs', () => {
+    const longText = 'This application provides a complete communication suite for teams and creators with playlists, podcasts, recommendations, personalized feeds, background sync, analytics, offline caching, in-app communities, and more capabilities across devices and operating systems.';
+    expect(helpers.summaryText(longText)).to.equal(undefined);
+  });
+
   it('returns default price text when missing', () => {
     expect(helpers.priceText(undefined)).to.equal('Free');
     expect(helpers.priceText('$1.99')).to.equal('$1.99');

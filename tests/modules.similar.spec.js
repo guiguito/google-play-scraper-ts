@@ -165,4 +165,40 @@ describe('modules/similar', () => {
     expect(res[0].appId).to.equal('com.spotify.s4a');
     scope.done();
   });
+
+  it('backfills missing summary from app details when fullDetail is false', async () => {
+    const item = [];
+    item[2] = 'Spotify for Artists';
+    item[12] = ['com.spotify.s4a'];
+    item[9] = [null, null, null, null, ['', '', '/store/apps/details?id=com.spotify.s4a']];
+    const ds3 = [];
+    ds3[0] = [];
+    ds3[0][1] = [];
+    ds3[0][1][0] = [];
+    ds3[0][1][0][21] = [];
+    ds3[0][1][0][21][0] = [item];
+    const seedHtml = `<script>AF_initDataCallback({key: 'ds:3', data: ${JSON.stringify(ds3)}, sideChannel: {}});</script>`;
+
+    const details = [];
+    details[1] = [];
+    details[1][2] = [];
+    details[1][2][0] = [];
+    details[1][2][0][0] = 'Spotify for Artists';
+    details[1][2][73] = [[null, 'Grow your audience and track releases']];
+    const detailHtml = `<script>AF_initDataCallback({key: 'ds:5', data: ${JSON.stringify(details)}, sideChannel: {}});</script>`;
+
+    const scopeSeed = nock(BASE_URL)
+      .get(uri => uri.startsWith('/store/apps/details') && uri.includes('id=com.spotify.music'))
+      .reply(200, seedHtml, { 'Content-Type': 'text/html' });
+    const scopeDetail = nock(BASE_URL)
+      .get(uri => uri.startsWith('/store/apps/details') && uri.includes('id=com.spotify.s4a'))
+      .reply(200, detailHtml, { 'Content-Type': 'text/html' });
+
+    const res = await similar({ appId: 'com.spotify.music', lang: 'en', country: 'us', fullDetail: false });
+    expect(res.length).to.be.greaterThan(0);
+    expect(res[0].appId).to.equal('com.spotify.s4a');
+    expect(res[0].summary).to.equal('Grow your audience and track releases');
+    scopeSeed.done();
+    scopeDetail.done();
+  });
 });

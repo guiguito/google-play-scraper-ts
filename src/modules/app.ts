@@ -45,7 +45,10 @@ const MAPPINGS: GenericMappings = {
     path: ['ds:5', 1, 2],
     fun: helper.descriptionHtmlLocalized,
   },
-  summary: ['ds:5', 1, 2, 73, 0, 1],
+  summary: {
+    path: ['ds:5', 1, 2, 73],
+    fun: helper.summaryText,
+  },
   installs: ['ds:5', 1, 2, 13, 0],
   minInstalls: ['ds:5', 1, 2, 13, 1],
   maxInstalls: ['ds:5', 1, 2, 13, 2],

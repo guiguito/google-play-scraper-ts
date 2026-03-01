@@ -3,6 +3,8 @@ import { request, createClient } from '../http/client';
 import * as scriptData from '../utils/scriptData';
 import { processPages, checkFinished, type ProcessMappings } from '../utils/processPages';
 import appList from '../utils/appList';
+import helper from '../utils/mappingHelpers';
+import { hydrateMissingSummaries } from '../utils/hydrateMissingSummaries';
 import type { JsonValue } from '../types';
 import type { AppListItem } from '../utils/appList';
 
@@ -70,7 +72,12 @@ async function parseSimilarApps(
     const inlineApps = extractAnyApps(similarObject);
     const refined = refineSimilarList(inlineApps, decodeURIComponent(opts.appId));
     if (refined.length > 0) {
-      return opts.fullDetail ? await fetchFullDetail(refined, opts) : refined;
+      if (opts.fullDetail) return fetchFullDetail(refined, opts);
+      const fetchDetails = async ({ appId, lang, country }: { appId: string; lang: string; country: string }) => {
+        const { app } = await import('./app');
+        return app({ appId, lang, country });
+      };
+      return hydrateMissingSummaries(refined, opts, fetchDetails);
     }
     throw new Error('Similar apps not found');
   }
@@ -92,13 +99,19 @@ async function parseSimilarApps(
     const { app } = await import('./app');
     return app({ appId, lang, country });
   };
-  return checkFinished(
+  const paged = await checkFinished(
     { num: 60, numberOfApps: 60, fullDetail: opts.fullDetail, lang: opts.lang, country: opts.country },
     apps,
     token,
     appDetails,
     ({ url, method, headers, body, country }) => client.request({ url, method, headers, body, country })
   );
+  if (opts.fullDetail) return paged;
+  const fetchDetails = async ({ appId, lang, country }: { appId: string; lang: string; country: string }) => {
+    const { app } = await import('./app');
+    return app({ appId, lang, country });
+  };
+  return hydrateMissingSummaries(paged as AppListItem[], opts, fetchDetails);
 }
 
 function isSimilarCluster(cluster: JsonValue | undefined) {
@@ -147,7 +160,7 @@ function extractFirstPageApps(parsed: JsonValue): AppListItem[] {
     currency: { path: [8, 1, 0, 1] as const, fun: asString },
     price: { path: [8, 1, 0, 0] as const, fun: (v: JsonValue | undefined) => typeof v === 'number' ? v / 1_000_000 : 0 },
     free: { path: [8, 1, 0, 0] as const, fun: (v: JsonValue | undefined) => v === 0 },
-    summary: { path: [13, 1] as const, fun: asString },
+    summary: { path: [13] as const, fun: helper.summaryText },
     scoreText: { path: [4, 0] as const, fun: asString },
     score: { path: [4, 1] as const, fun: asNumber },
   } satisfies Record<string, { path: ReadonlyArray<string | number>; fun: (v: JsonValue | undefined) => unknown }>;
@@ -188,7 +201,7 @@ function extractAnyApps(parsed: JsonValue): AppListItem[] {
     currency: { path: [8, 1, 0, 1] as const, fun: asString },
     price: { path: [8, 1, 0, 0] as const, fun: (v: JsonValue | undefined) => typeof v === 'number' ? v / 1_000_000 : 0 },
     free: { path: [8, 1, 0, 0] as const, fun: (v: JsonValue | undefined) => v === 0 },
-    summary: { path: [13, 1] as const, fun: asString },
+    summary: { path: [13] as const, fun: helper.summaryText },
     scoreText: { path: [4, 0] as const, fun: asString },
     score: { path: [4, 1] as const, fun: asNumber },
   };

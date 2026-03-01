@@ -19,6 +19,59 @@ export function descriptionText(description: string) {
   return html('div').text();
 }
 
+function collectStrings(value: JsonValue | undefined, out: string[], depth: number) {
+  if (depth > 6 || value === undefined || value === null) return;
+  if (typeof value === 'string') {
+    out.push(value);
+    return;
+  }
+  if (Array.isArray(value)) {
+    value.forEach((item) => collectStrings(item, out, depth + 1));
+    return;
+  }
+  if (isJsonObject(value)) {
+    Object.values(value).forEach((item) => collectStrings(item, out, depth + 1));
+  }
+}
+
+function normalizeSummaryCandidate(input: string) {
+  const html = cheerio.load('<div>' + input.replace(/<br\s*\/?>/gi, '\n') + '</div>');
+  const text = html('div').text().replace(/\r/g, '').trim();
+  if (!text) return undefined;
+  const firstLine = text.split(/\n+/)[0]?.trim();
+  if (!firstLine) return undefined;
+  return firstLine.replace(/\s+/g, ' ').trim();
+}
+
+export function summaryText(value: JsonValue | undefined) {
+  const rawCandidates: string[] = [];
+  collectStrings(value, rawCandidates, 0);
+  const normalized = Array.from(
+    new Set(rawCandidates.map((candidate) => normalizeSummaryCandidate(candidate)).filter((v): v is string => Boolean(v)))
+  );
+  if (normalized.length === 0) return undefined;
+
+  const scored = normalized
+    .map((candidate) => {
+      let score = 0;
+      const len = candidate.length;
+      if (len >= 8 && len <= 120) score += 4;
+      else if (len <= 160) score += 2;
+      else if (len <= 220) score += 1;
+      else score -= 4;
+
+      const sentenceBreaks = (candidate.match(/[.!?](\s|$)/g) || []).length;
+      if (sentenceBreaks >= 2) score -= 2;
+      if (candidate.includes(':')) score -= 1;
+      return { candidate, score };
+    })
+    .sort((a, b) => b.score - a.score || a.candidate.length - b.candidate.length);
+
+  const best = scored[0]?.candidate;
+  if (!best || best.length > 220) return undefined;
+  return best;
+}
+
 export function priceText(priceText?: string) {
   return priceText || 'Free';
 }
@@ -102,6 +155,7 @@ export function extractCategories(searchArray: JsonValue | undefined, categories
 export default {
   descriptionHtmlLocalized,
   descriptionText,
+  summaryText,
   priceText,
   normalizeAndroidVersion,
   buildHistogram,

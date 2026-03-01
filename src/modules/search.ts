@@ -2,6 +2,8 @@ import { BASE_URL } from '../constants';
 import { request } from '../http/client';
 import * as scriptData from '../utils/scriptData';
 import { checkFinished } from '../utils/processPages';
+import helper from '../utils/mappingHelpers';
+import { hydrateMissingSummaries } from '../utils/hydrateMissingSummaries';
 import type { JsonValue } from '../types';
 import type { AppListItem } from '../utils/appList';
 import type { AppOptions } from './app';
@@ -74,7 +76,7 @@ const GLOBAL_APP_MAPPINGS = {
     path: [7, 0, 3, 2, 1, 0, 0],
     fun: (price) => price === 0,
   },
-  summary: { path: [4, 1, 1, 1, 1], fun: asString },
+  summary: { path: [4, 1, 1, 1], fun: helper.summaryText },
   scoreText: { path: [6, 0, 2, 1, 0], fun: asString },
   score: { path: [6, 0, 2, 1, 1], fun: asNumber },
 } satisfies scriptData.GenericMappings;
@@ -133,13 +135,6 @@ function normalizeSearchOptions(opts: SearchOptions): SearchState {
     price: opts.price ? getPriceGoogleValue(opts.price) : 0,
     requestOptions: opts.requestOptions,
   };
-}
-
-function sanitizeSummary(summary: string | undefined): string | undefined {
-  if (!summary) return undefined;
-  const normalized = summary.replace(/<br\s*\/?>/gi, '\n').replace(/<[^>]+>/g, '').trim();
-  const firstLine = normalized.split(/\n+/)[0];
-  return firstLine.trim();
 }
 
 function extractAppIdFromUrl(urlPath: string | undefined): string | undefined {
@@ -261,7 +256,7 @@ function mapStoreListApp(raw: JsonValue | undefined): AppListItem | undefined {
     currency: asString(scriptData.getPathValue(data, [8, 1, 0, 1])),
     price,
     free: price === 0,
-    summary: sanitizeSummary(asString(scriptData.getPathValue(data, [13, 1]))),
+    summary: helper.summaryText(scriptData.getPathValue(data, [13])),
     scoreText: asString(scriptData.getPathValue(data, [4, 0])),
     score: asNumber(scriptData.getPathValue(data, [4, 1])),
   };
@@ -293,10 +288,7 @@ function mapStoreSingleApp(node: JsonValue | undefined): AppListItem | undefined
     currency: asString(scriptData.getPathValue(node, [57, 0, 0, 0, 1, 0, 1])),
     price,
     free: price === 0,
-    summary: sanitizeSummary(
-      asString(scriptData.getPathValue(node, [73, 0, 1])) ??
-        asString(scriptData.getPathValue(node, [72, 0, 1]))
-    ),
+    summary: helper.summaryText(scriptData.getPathValue(node, [73])),
     scoreText: asString(scriptData.getPathValue(node, [51, 0, 0])),
     score: asNumber(scriptData.getPathValue(node, [51, 0, 1])),
   };
@@ -401,7 +393,7 @@ export async function searchGlobal(
   const state = normalizeSearchOptions(opts);
   const results = await initialGlobalRequest(state);
   if (state.fullDetail) return fetchFullDetailResults(appFetcher, results, state);
-  return results;
+  return hydrateMissingSummaries(results, { lang: state.lang, country: state.country }, appFetcher);
 }
 
 export async function search(
@@ -411,7 +403,7 @@ export async function search(
   const state = normalizeSearchOptions(opts);
   const results = await initialStoreRequest(state);
   if (state.fullDetail) return fetchFullDetailResults(appFetcher, results, state);
-  return results;
+  return hydrateMissingSummaries(results, { lang: state.lang, country: state.country }, appFetcher);
 }
 
 export default search;

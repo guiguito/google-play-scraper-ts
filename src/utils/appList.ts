@@ -1,5 +1,6 @@
 import { BASE_URL } from '../constants';
 import { extractor, getPathValue, type MappingSpec } from './scriptData';
+import helper from './mappingHelpers';
 import type { JsonValue } from '../types';
 
 export interface AppListItem {
@@ -64,7 +65,7 @@ const APP_MAPPINGS: AppListMappings = {
     path: [7, 0, 3, 2, 1, 0, 2],
     fun: (price) => price === undefined,
   },
-  summary: { path: [4, 1, 1, 1, 1], fun: asString },
+  summary: { path: [4, 1, 1, 1], fun: helper.summaryText },
   scoreText: { path: [6, 0, 2, 1, 0], fun: asString },
   score: { path: [6, 0, 2, 1, 1], fun: asNumber },
 };

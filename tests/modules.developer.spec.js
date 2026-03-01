@@ -37,4 +37,46 @@ describe('modules/developer', () => {
     expect(res[0].appId).to.equal('com.test.app');
     scope.done();
   });
+
+  it('backfills missing summary from app details when fullDetail is false', async () => {
+    const item = [];
+    item[0] = [];
+    item[0][3] = 'My App';
+    item[0][0] = ['com.wallet.app'];
+    item[0][10] = [null, null, null, null, ['', '', '/store/apps/details?id=com.wallet.app']];
+    item[0][1] = [null, [null, [null, ''], ['', '', 'https://icon']]];
+    item[0][14] = 'Dev';
+    item[0][8] = [null, [null, [0, 'USD']]];
+    item[0][4] = [['4.5', 4.5]];
+    item[0][13] = [null, null];
+
+    const ds3 = [];
+    ds3[0] = [];
+    ds3[0][1] = [];
+    ds3[0][1][0] = [];
+    ds3[0][1][0][22] = [];
+    ds3[0][1][0][22][0] = [item];
+
+    const html = `<script>AF_initDataCallback({key: 'ds:3', data: ${JSON.stringify(ds3)}, sideChannel: {}});</script>`;
+    const devScope = nock(BASE_URL)
+      .get(uri => uri.startsWith('/store/apps/developer'))
+      .reply(200, html, { 'Content-Type': 'text/html' });
+
+    const details = [];
+    details[1] = [];
+    details[1][2] = [];
+    details[1][2][0] = [];
+    details[1][2][0][0] = 'Wallet App';
+    details[1][2][73] = [[null, 'Tap and pay safely']];
+    const appHtml = `<script>AF_initDataCallback({key: 'ds:5', data: ${JSON.stringify(details)}, sideChannel: {}});</script>`;
+    const appScope = nock(BASE_URL)
+      .get(uri => uri.startsWith('/store/apps/details'))
+      .reply(200, appHtml, { 'Content-Type': 'text/html' });
+
+    const res = await developer({ devId: 'Acme', num: 1, lang: 'en', country: 'us', fullDetail: false });
+    expect(res).to.have.length(1);
+    expect(res[0].summary).to.equal('Tap and pay safely');
+    devScope.done();
+    appScope.done();
+  });
 });
