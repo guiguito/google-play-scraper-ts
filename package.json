@@ -22,7 +22,7 @@
     "url": "https://github.com/Guiguito/google-play-scraper-ts/issues"
   },
   "author": "Guiguito",
-  "license": "ISC",
+  "license": "MIT",
   "publishConfig": {
     "access": "public"
   },
