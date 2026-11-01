@@ -62,8 +62,14 @@ function parsePrice(value: JsonValue | undefined): number {
   return 0;
 }
 
-function extractDeveloperId(link: JsonValue | undefined) {
-  return typeof link === 'string' ? link.split('?id=')[1] : undefined;
+/** Decoded `id` query param of a Play link ('/store/apps/developer?id=Spotify+AB' → 'Spotify AB'). */
+export function idFromUrl(link: JsonValue | undefined): string | undefined {
+  if (typeof link !== 'string') return undefined;
+  try {
+    return new URL(link, BASE_URL).searchParams.get('id') ?? undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 type AppListMappings = { [K in keyof AppListItem]-?: MappingSpec<AppListItem[K]> };
@@ -77,7 +83,7 @@ const APP_MAPPINGS: AppListMappings = {
   },
   icon: { path: [1, 1, 0, 3, 2], fun: asString },
   developer: { path: [4, 0, 0, 0], fun: asString },
-  developerId: { path: [4, 0, 0, 1, 4, 2], fun: extractDeveloperId },
+  developerId: { path: [4, 0, 0, 1, 4, 2], fun: idFromUrl },
   priceText: {
     path: [7, 0, 3, 2, 1, 0, 2],
     fun: (price) => (typeof price === 'string' ? price : 'FREE'),

@@ -4,7 +4,7 @@ import * as scriptData from '../utils/scriptData';
 import helper from '../utils/mappingHelpers';
 import { fetchFullDetails, hydrateMissingSummaries } from '../utils/hydrateMissingSummaries';
 import type { AppDetails, JsonValue } from '../types';
-import { asNumber, asString, toAbsoluteUrl, type AppListItem } from '../utils/appList';
+import { asNumber, asString, idFromUrl, toAbsoluteUrl, type AppListItem } from '../utils/appList';
 import type { AppOptions } from './app';
 
 function getPriceGoogleValue(value: string) {
@@ -49,17 +49,6 @@ function normalizeSearchOptions(opts: SearchOptions): SearchState {
     requestOptions: opts.requestOptions,
     backfillSummaries: opts.backfillSummaries,
   };
-}
-
-function extractAppIdFromUrl(urlPath: string | undefined): string | undefined {
-  if (!urlPath) return undefined;
-  try {
-    const parsed = new URL(urlPath, BASE_URL);
-    return parsed.searchParams.get('id') ?? undefined;
-  } catch {
-    const match = urlPath.match(/[?&]id=([^&]+)/);
-    return match ? decodeURIComponent(match[1]) : undefined;
-  }
 }
 
 function dedupeByAppId(apps: AppListItem[]): AppListItem[] {
@@ -119,11 +108,11 @@ function mapStoreSingleApp(node: JsonValue | undefined): AppListItem | undefined
 
   return {
     title: asString(scriptData.getPathValue(node, [0, 0])),
-    appId: extractAppIdFromUrl(urlPath),
+    appId: idFromUrl(urlPath),
     url,
     icon,
     developer: asString(scriptData.getPathValue(node, [68, 0])),
-    developerId: extractAppIdFromUrl(asString(scriptData.getPathValue(node, [68, 1, 4, 2])) ?? undefined),
+    developerId: idFromUrl(scriptData.getPathValue(node, [68, 1, 4, 2])),
     priceText,
     currency: asString(scriptData.getPathValue(node, [57, 0, 0, 0, 1, 0, 1])),
     price,

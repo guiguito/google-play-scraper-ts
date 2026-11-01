@@ -7,6 +7,10 @@ The format is based on Keep a Changelog, and this project adheres to Semantic Ve
 ## [Unreleased]
 ### Breaking
 - `search()` `num` is limited to 30 (was 250) and throws above it: Play serves at most 30 results per query, with no further pages.
+### Added
+- `app()` returns `releasedTimestamp` (ms since epoch); `released` stays Play's localized text.
+### Fixed
+- `app()` `developerId` and `developerInternalID` are URL-decoded (`'Spotify AB'`, was `'Spotify+AB'`), so they work as `developer({ devId })` and match `search()`.
 
 ## [0.4.0] - 2026-11-01
 ### Breaking
