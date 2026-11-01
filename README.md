@@ -324,12 +324,20 @@ Pull paginated user reviews for a given app.
 | `sort` | `constants.sort` | `constants.sort.NEWEST` | Sorting mode (`NEWEST`, `RATING`, `HELPFULNESS`). |
 | `lang` | `string` | `'en'` | Review language. |
 | `country` | `string` | `'us'` | Locale used for review localisation. |
-| `num` | `number` | `150` | Maximum reviews to gather before stopping. |
+| `num` | `number` | `150` | Maximum reviews to gather before stopping. Fetched up to 4500 per request (`num: 2000` is one request). |
 | `paginate` | `boolean` | `false` | When `false`, auto-follow tokens until `num` reviews or exhaust data. |
 | `nextPaginationToken` | `string \| null` | `null` | Pass a token from a previous response to resume manually. |
+| `score` | `1 \| 2 \| 3 \| 4 \| 5` | – | Only reviews with this star rating, filtered by Play. |
+| `device` | `constants.device` | – | Only reviews written on this form factor (`MOBILE`, `TABLET`, `WATCH`, `CHROMEBOOK`, `TV`), filtered by Play. |
 | `requestOptions` | `{ headers?: Record<string, string> }` | – | Extra HTTP headers for every request the call makes. |
 
 When `paginate` is `true`, the method fetches a single page and returns the next token (if any). The `data` array contains `Review` entries.
+
+Filters are applied by Play, so a filtered call downloads only what it returns. When paging manually, pass the same `score` and `device` with each `nextPaginationToken`: the token is a position, not a query.
+
+```ts
+const { data } = await gplay.reviews({ appId: 'com.whatsapp', score: 1, device: gplay.device.TABLET, num: 50 });
+```
 
 ### `similar(options): Promise<AppSummary[] \| AppDetails[]>`
 
@@ -393,6 +401,7 @@ The enums are available as the named export `constants` (and spread at the top l
 - `constants.collection` – `TOP_FREE`, `TOP_PAID`, `GROSSING`.
 - `constants.category` – All Play categories (apps, games, family variants, etc.).
 - `constants.sort` – Review sort orders (`NEWEST`, `RATING`, `HELPFULNESS`).
+- `constants.device` – Review device filter (`MOBILE`, `TABLET`, `WATCH`, `CHROMEBOOK`, `TV`).
 - `constants.age` – Age-range filters used by the family charts.
 - `constants.permission` – Permission buckets (`COMMON`, `OTHER`).
 

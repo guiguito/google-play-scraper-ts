@@ -71,6 +71,14 @@ export const constants = {
     RATING: 3,
     HELPFULNESS: 1,
   },
+  /** Review device filter (form factor the review was written on). */
+  device: {
+    MOBILE: 2,
+    TABLET: 3,
+    WATCH: 4,
+    CHROMEBOOK: 5,
+    TV: 6,
+  },
   age: {
     FIVE_UNDER: 'AGE_RANGE1',
     SIX_EIGHT: 'AGE_RANGE2',

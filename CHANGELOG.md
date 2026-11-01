@@ -5,6 +5,9 @@ All notable changes to this project will be documented in this file.
 The format is based on Keep a Changelog, and this project adheres to Semantic Versioning.
 
 ## [Unreleased]
+### Added
+- `reviews()` `score` (1–5) and `device` (`constants.device.MOBILE`, `TABLET`, `WATCH`, `CHROMEBOOK`, `TV`) filters, applied by Play on every page.
+- `reviews()` asks for up to 4500 reviews per request (was 150): `num: 2000` is one request instead of 14.
 ### Fixed
 - `search()` follows Play's continuation token again and accepts `num` up to 250. 0.4.1 capped it at 30, but some queries (single characters, digits, some app names such as `minecraft`) carry a token worth ~200 more apps; queries without one still stop at the first page. Continuation pages are filtered by `price` client-side and de-duplicated.
 

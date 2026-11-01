@@ -11,7 +11,9 @@ async function run() {
   const devApps: AppSummary[] = await api.developer({ devId: '123' });
   const similar: AppDetails[] = await api.similar({ appId: 'x', fullDetail: true });
 
-  const reviews = await api.reviews({ appId: 'x' });
+  const reviews = await api.reviews({ appId: 'x', score: 1, device: api.device.TABLET });
+  // @ts-expect-error score is 1–5
+  await api.reviews({ appId: 'x', score: 6 });
   const first: Review | undefined = reviews.data[0];
   const text: string | undefined = first?.text;
 

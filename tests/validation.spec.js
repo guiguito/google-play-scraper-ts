@@ -48,9 +48,11 @@ describe('validation and edge cases', () => {
     expect(threw).to.equal(true);
   });
 
-  it('reviews: throws on invalid sort', async () => {
-    let threw=false; try { await reviews({ appId: 'com.test', sort: 999 }); } catch { threw=true; }
-    expect(threw).to.equal(true);
+  it('reviews: throws on invalid sort, score or device', async () => {
+    for (const opts of [{ sort: 999 }, { score: 6 }, { score: 0 }, { device: 1 }]) {
+      let threw=false; try { await reviews({ appId: 'com.test', ...opts }); } catch { threw=true; }
+      expect(threw, JSON.stringify(opts)).to.equal(true);
+    }
   });
 
   it('explicit undefined options fall back to defaults', async () => {
