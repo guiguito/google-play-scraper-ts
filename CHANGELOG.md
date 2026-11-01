@@ -4,7 +4,7 @@ All notable changes to this project will be documented in this file.
 
 The format is based on Keep a Changelog, and this project adheres to Semantic Versioning.
 
-## [Unreleased]
+## [0.4.0] - 2026-11-01
 ### Breaking
 - Node.js 20.18.1 or newer is required (cheerio's bundled undici crashes on older versions).
 - `searchGlobal()` was removed; `search()` uses `/store/search` only.
