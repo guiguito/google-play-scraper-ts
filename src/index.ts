@@ -78,41 +78,45 @@ export function createPlayStoreApi(options?: CreatePlayStoreApiOptions): PlaySto
 }
 
 export function memoized(_opts?: MemoizeOptions): PlayStoreApi {
-  const cache = new Map<string, { t: number; v: unknown }>();
+  const cache = new Map<string, { t: number; v: Promise<unknown> }>();
   const maxAge = _opts?.maxAge ?? 5 * 60 * 1000;
   const max = _opts?.max ?? 1000;
-  // Typed as F so overloads (fullDetail, short) survive memoization.
-  function m<F extends (...args: never[]) => Promise<unknown>>(fn: F): F {
+  // Typed as F so overloads (fullDetail, short) survive memoization. Keyed by method name, not fn.name,
+  // which minifiers rename. The promise is cached, so concurrent identical calls share one request.
+  function m<F extends (...args: never[]) => Promise<unknown>>(name: string, fn: F): F {
     const call = fn as unknown as (...args: unknown[]) => Promise<unknown>;
-    const wrapped = async (...args: unknown[]) => {
-      const key = `${fn.name}:${JSON.stringify(args)}`;
+    const wrapped = (...args: unknown[]) => {
+      const key = `${name}:${JSON.stringify(args)}`;
       const now = Date.now();
       const hit = cache.get(key);
       if (hit && now - hit.t <= maxAge) return hit.v;
-      const value = await call(...args);
+      const value = call(...args);
+      cache.delete(key); // re-insert so eviction order follows insertion time
       cache.set(key, { t: now, v: value });
+      // Don't keep failures: the next call retries.
+      value.catch(() => cache.get(key)?.v === value && cache.delete(key));
       if (cache.size > max) {
         const it = cache.keys().next();
-        if (!it.done) cache.delete(it.value as string);
+        if (!it.done) cache.delete(it.value);
       }
       return value;
     };
     return wrapped as unknown as F;
   }
-  const mApp = m(app);
-  const memoizedSearch = m(((opts: SearchOptions) => search(mApp, opts)) as FullDetailFn<SearchOptions>);
+  const mApp = m('app', app);
+  const memoizedSearch = m('search', ((opts: SearchOptions) => search(mApp, opts)) as FullDetailFn<SearchOptions>);
   return {
     ...constants,
     app: mApp,
-    list: m(baseApi.list),
+    list: m('list', baseApi.list),
     search: memoizedSearch,
-    suggest: m(suggest),
-    developer: m(baseApi.developer),
-    reviews: m(reviews),
-    similar: m(baseApi.similar),
-    permissions: m(permissions),
-    datasafety: m(datasafety),
-    categories: m(categories),
+    suggest: m('suggest', suggest),
+    developer: m('developer', baseApi.developer),
+    reviews: m('reviews', reviews),
+    similar: m('similar', baseApi.similar),
+    permissions: m('permissions', permissions),
+    datasafety: m('datasafety', datasafety),
+    categories: m('categories', categories),
     memoized,
   };
 }

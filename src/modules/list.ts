@@ -2,7 +2,7 @@ import { BASE_URL, constants } from '../constants';
 import { request } from '../http/client';
 import { HttpError } from '../errors';
 import * as scriptData from '../utils/scriptData';
-import { hydrateMissingSummaries } from '../utils/hydrateMissingSummaries';
+import { fetchFullDetails, hydrateMissingSummaries } from '../utils/hydrateMissingSummaries';
 import type { AppDetails, JsonValue } from '../types';
 import { cardMappings, type AppListItem } from '../utils/appList';
 
@@ -99,17 +99,13 @@ export async function list(opts: ListOptions): Promise<AppListItem[] | AppDetail
 
   if (fullListOpts.fullDetail) {
     const { app } = await import('./app');
-    return Promise.all(
-      processedApps
-        .filter((item): item is AppListItem & { appId: string } => typeof item.appId === 'string')
-        .map((item) => app({ appId: item.appId, lang: fullListOpts.lang!, country: fullListOpts.country! }))
-    );
+    return fetchFullDetails(processedApps, fullListOpts, app);
   }
   const fetchDetails = async ({ appId, lang, country }: { appId: string; lang: string; country: string }) => {
     const { app } = await import('./app');
     return app({ appId, lang, country });
   };
-  return hydrateMissingSummaries(processedApps, { lang: fullListOpts.lang!, country: fullListOpts.country! }, fetchDetails);
+  return hydrateMissingSummaries(processedApps, { lang: fullListOpts.lang, country: fullListOpts.country }, fetchDetails);
 }
 
 function parseBatchexecute(html: string): JsonValue | null {

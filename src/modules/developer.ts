@@ -2,7 +2,7 @@ import { BASE_URL } from '../constants';
 import { request } from '../http/client';
 import * as scriptData from '../utils/scriptData';
 import { checkFinished } from '../utils/processPages';
-import { hydrateMissingSummaries } from '../utils/hydrateMissingSummaries';
+import { fetchFullDetails, hydrateMissingSummaries } from '../utils/hydrateMissingSummaries';
 import type { AppDetails, JsonValue } from '../types';
 import { cardMappings, type AppListItem } from '../utils/appList';
 
@@ -62,11 +62,7 @@ async function parseDeveloperApps(html: JsonValue, opts: { devId: string; num: n
     return app({ appId, lang, country });
   };
   if (opts.fullDetail) {
-    return Promise.all(
-      apps
-        .filter((item): item is AppListItem & { appId: string } => typeof item.appId === 'string')
-        .map((item) => fetchDetails({ appId: item.appId, lang: opts.lang, country: opts.country }))
-    );
+    return fetchFullDetails(apps, opts, fetchDetails);
   }
   return hydrateMissingSummaries(apps, { lang: opts.lang, country: opts.country }, fetchDetails);
 }

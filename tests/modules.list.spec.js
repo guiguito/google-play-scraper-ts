@@ -201,4 +201,30 @@ describe('modules/list', () => {
     listScope.done();
     appScope.done();
   });
+
+  it('fullDetail skips apps that 404 but still fails on other errors', async () => {
+    const gone = buildListItem();
+    gone[0][0] = ['com.gone.app'];
+    const kept = buildListItem();
+    kept[0][0] = ['com.kept.app'];
+    const listBody = `x\n${JSON.stringify([[null, null, JSON.stringify(buildCollectionPayload([gone, kept]))]])}\n`;
+    const details = [];
+    details[1] = [];
+    details[1][2] = [];
+    details[1][2][0] = ['Kept App'];
+    const appHtml = `<script>AF_initDataCallback({key: 'ds:5', data: ${JSON.stringify(details)}, sideChannel: {}});</script>`;
+
+    nock(BASE_URL).post(/\/batchexecute/).reply(200, listBody);
+    nock(BASE_URL).get((u) => u.includes('id=com.gone.app')).reply(404, 'nope');
+    nock(BASE_URL).get((u) => u.includes('id=com.kept.app')).reply(200, appHtml);
+    const res = await list({ num: 2, fullDetail: true });
+    expect(res.map((a) => a.appId)).to.deep.equal(['com.kept.app']);
+
+    nock(BASE_URL).post(/\/batchexecute/).reply(200, listBody);
+    nock(BASE_URL).get((u) => u.includes('id=com.gone.app')).reply(403, 'blocked');
+    nock(BASE_URL).get((u) => u.includes('id=com.kept.app')).reply(200, appHtml);
+    let err;
+    await list({ num: 2, fullDetail: true }).catch((e) => { err = e; });
+    expect(err && err.status).to.equal(403);
+  });
 });

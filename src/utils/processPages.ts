@@ -4,6 +4,7 @@ import appList from './appList';
 import { request } from '../http/client';
 import type { JsonValue } from '../types';
 import type { AppListItem } from './appList';
+import { fetchFullDetails } from './hydrateMissingSummaries';
 
 export interface ProcessMappings {
   apps: ReadonlyArray<string | number>;
@@ -36,20 +37,13 @@ export async function processPages<T = AppListItem>(
 
   const processedApps = appList.extract(mappings.apps, parsed);
   const apps = opts.fullDetail && appDetails
-    ? await processFullDetailApps(processedApps, opts, appDetails)
+    ? await fetchFullDetails(processedApps, opts, appDetails)
     : (processedApps as unknown as T[]);
 
   const tokenValue = scriptData.getPathValue(parsed, mappings.token);
   // An empty page that still carries a token would otherwise be requested forever.
   const token = typeof tokenValue === 'string' && processedApps.length > 0 ? tokenValue : undefined;
   return checkFinished(opts, [...savedApps, ...apps], token, appDetails);
-}
-
-async function processFullDetailApps<T>(apps: AppListItem[], opts: PageOptions, appDetails: AppDetailsFn<T>) {
-  const tasks = apps
-    .filter((app): app is AppListItem & { appId: string } => typeof app.appId === 'string')
-    .map((app) => appDetails({ appId: app.appId, lang: opts.lang, country: opts.country }));
-  return Promise.all(tasks);
 }
 
 const REQUEST_MAPPINGS: ProcessMappings = {

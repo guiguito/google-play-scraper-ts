@@ -47,7 +47,7 @@ const topFreeMusic = await gplay.list({
 - `country` controls geotargeting and pricing (default `'us'`).
 - Methods that accept `requestOptions` forward `requestOptions.headers` to the underlying HTTP client so you can inject cookies or additional headers.
 - Every function returns a Promise; runtime errors (invalid inputs, store shape changes, HTTP failures) surface as rejected promises. HTTP failures reject with `HttpError` (exported, with `status` and `body`); 404s, e.g. an unknown app, reject with its subclass `NotFoundError`.
-- Methods with `fullDetail` are overloaded: `fullDetail: true` resolves to `AppDetails[]`, otherwise to `AppSummary[]`.
+- Methods with `fullDetail` are overloaded: `fullDetail: true` resolves to `AppDetails[]`, otherwise to `AppSummary[]`. With `fullDetail`, apps whose detail page returns 404 (removed, or not offered in that country) are left out; any other error rejects the call.
 
 ### Proxy routing
 
@@ -363,7 +363,7 @@ Wrap the API with an in-memory cache.
 | `maxAge` | `number` | `300_000` | Cache TTL in milliseconds. |
 | `max` | `number` | `1_000` | Maximum cache size; oldest entries are evicted first. |
 
-The returned object has the same surface as the default export (including a `memoized` method) but memoises every call.
+The returned object has the same surface as the default export (including a `memoized` method) but memoises every call. Concurrent identical calls share one request, and failed calls are not cached.
 
 ### Constants helper
 

@@ -2,7 +2,7 @@ import { BASE_URL } from '../constants';
 import { request } from '../http/client';
 import * as scriptData from '../utils/scriptData';
 import helper from '../utils/mappingHelpers';
-import { hydrateMissingSummaries } from '../utils/hydrateMissingSummaries';
+import { fetchFullDetails, hydrateMissingSummaries } from '../utils/hydrateMissingSummaries';
 import type { AppDetails, JsonValue } from '../types';
 import { asNumber, asString, toAbsoluteUrl, type AppListItem } from '../utils/appList';
 import type { AppOptions } from './app';
@@ -159,18 +159,6 @@ async function initialStoreRequest(opts: SearchState) {
   return extractStoreResults(scriptData.parse(html)).slice(0, opts.num);
 }
 
-async function fetchFullDetailResults<R>(
-  appFetcher: (args: AppOptions) => Promise<R>,
-  apps: AppListItem[],
-  state: SearchState
-): Promise<R[]> {
-  return Promise.all(
-    apps
-      .filter((item): item is AppListItem & { appId: string } => typeof item.appId === 'string' && item.appId.length > 0)
-      .map((item) => appFetcher({ appId: item.appId, lang: state.lang, country: state.country }))
-  );
-}
-
 export interface SearchOptions {
   term: string;
   lang?: string;
@@ -187,7 +175,7 @@ export async function search(
 ): Promise<AppListItem[] | AppDetails[]> {
   const state = normalizeSearchOptions(opts);
   const results = await initialStoreRequest(state);
-  if (state.fullDetail) return fetchFullDetailResults(appFetcher, results, state);
+  if (state.fullDetail) return fetchFullDetails(results, state, appFetcher);
   return hydrateMissingSummaries(results, { lang: state.lang, country: state.country }, appFetcher);
 }
 

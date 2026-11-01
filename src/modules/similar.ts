@@ -3,7 +3,7 @@ import { request } from '../http/client';
 import * as scriptData from '../utils/scriptData';
 import { processPages, checkFinished, type ProcessMappings } from '../utils/processPages';
 import appList, { cardMappings } from '../utils/appList';
-import { hydrateMissingSummaries } from '../utils/hydrateMissingSummaries';
+import { fetchFullDetails, hydrateMissingSummaries } from '../utils/hydrateMissingSummaries';
 import type { AppDetails, JsonValue } from '../types';
 import type { AppListItem } from '../utils/appList';
 
@@ -153,10 +153,7 @@ function extractFirstPageApps(parsed: JsonValue): AppListItem[] {
 
 async function fetchFullDetail(apps: AppListItem[], opts: { lang: string; country: string }) {
   const { app } = await import('./app');
-  const tasks = apps
-    .filter((i): i is AppListItem & { appId: string } => typeof i.appId === 'string')
-    .map((i) => app({ appId: i.appId, lang: opts.lang, country: opts.country }));
-  return Promise.all(tasks);
+  return fetchFullDetails(apps, opts, app);
 }
 
 function extractAnyApps(parsed: JsonValue): AppListItem[] {

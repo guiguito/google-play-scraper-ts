@@ -1,3 +1,4 @@
+import { NotFoundError } from '../errors';
 import type { AppListItem } from './appList';
 
 interface HydrationOptions {
@@ -34,4 +35,26 @@ export async function hydrateMissingSummaries(
   );
 }
 
-export default { hydrateMissingSummaries };
+/**
+ * fullDetail fan-out: one app() per listed app. A 404 (app removed, or not offered in that
+ * country) drops that entry; any other error still rejects the whole call.
+ */
+export async function fetchFullDetails<T>(
+  apps: AppListItem[],
+  opts: HydrationOptions,
+  fetchDetails: (args: { appId: string; lang: string; country: string }) => Promise<T>
+): Promise<T[]> {
+  const results = await Promise.all(
+    apps
+      .filter((item): item is AppListItem & { appId: string } => typeof item.appId === 'string' && item.appId.length > 0)
+      .map((item) =>
+        fetchDetails({ appId: item.appId, lang: opts.lang, country: opts.country }).catch((err: unknown) => {
+          if (err instanceof NotFoundError) return undefined;
+          throw err;
+        })
+      )
+  );
+  return results.filter((r): r is Awaited<T> => r !== undefined);
+}
+
+export default { hydrateMissingSummaries, fetchFullDetails };
