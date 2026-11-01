@@ -8,18 +8,17 @@ const REQUEST_TYPE = { initial: 'initial', paginated: 'paginated' } as const;
 type RequestTypeKey = keyof typeof REQUEST_TYPE;
 
 
-function getBodyForRequests({ appId, sort, numberOfReviewsPerRequest = 150, withToken = '%token%', requestType = REQUEST_TYPE.initial }: {
+function getBodyForRequests({ appId, sort, numberOfReviewsPerRequest = 150, withToken, requestType = REQUEST_TYPE.initial }: {
   appId: string;
   sort: number;
   numberOfReviewsPerRequest?: number;
   withToken?: string;
   requestType?: RequestTypeKey;
 }) {
-  const forms = {
-    initial: `f.req=%5B%5B%5B%22UsvDTd%22%2C%22%5Bnull%2Cnull%2C%5B2%2C${sort}%2C%5B${numberOfReviewsPerRequest}%2Cnull%2Cnull%5D%2Cnull%2C%5B%5D%5D%2C%5B%5C%22${appId}%5C%22%2C7%5D%5D%22%2Cnull%2C%22generic%22%5D%5D%5D`,
-    paginated: `f.req=%5B%5B%5B%22UsvDTd%22%2C%22%5Bnull%2Cnull%2C%5B2%2C${sort}%2C%5B${numberOfReviewsPerRequest}%2Cnull%2C%5C%22${withToken}%5C%22%5D%2Cnull%2C%5B%5D%5D%2C%5B%5C%22${appId}%5C%22%2C7%5D%5D%22%2Cnull%2C%22generic%22%5D%5D%5D`,
-  } as const;
-  return forms[requestType];
+  // JSON.stringify + encodeURIComponent: appId and tokens must not be able to break the payload.
+  const token = requestType === REQUEST_TYPE.paginated ? withToken ?? null : null;
+  const inner = [null, null, [2, sort, [numberOfReviewsPerRequest, null, token], null, []], [appId, 7]];
+  return `f.req=${encodeURIComponent(JSON.stringify([[['UsvDTd', JSON.stringify(inner), null, 'generic']]]))}`;
 }
 
 const REQUEST_MAPPINGS = { reviews: [0], token: [1, 1] } as const;

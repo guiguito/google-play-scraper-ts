@@ -71,4 +71,16 @@ describe('modules/reviews', () => {
     expect(res.data).to.deep.equal([]);
     scope.done();
   });
+
+  it('encodes appId and pagination token as JSON in the request body', async () => {
+    let fReq;
+    const scope = nock(BASE_URL)
+      .post(/\/batchexecute/, (b) => { fReq = b['f.req']; return true; })
+      .reply(200, ")]}'\n[[null,null,null]]");
+    await reviews({ appId: 'com.test', paginate: true, num: 10, nextPaginationToken: 'a+b/c="d"' });
+    const inner = JSON.parse(JSON.parse(fReq)[0][0][1]);
+    expect(inner[2][2]).to.deep.equal([10, null, 'a+b/c="d"']);
+    expect(inner[3]).to.deep.equal(['com.test', 7]);
+    scope.done();
+  });
 });

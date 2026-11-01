@@ -19,7 +19,8 @@ export async function permissions(opts: PermissionsOptions): Promise<string[] | 
   if (!opts || !opts.appId) throw new Error('appId missing');
   const lang = opts.lang || 'en';
   const country = opts.country || 'us';
-  const body = `f.req=%5B%5B%5B%22xdSrCf%22%2C%22%5B%5Bnull%2C%5B%5C%22${opts.appId}%5C%22%2C7%5D%2C%5B%5D%5D%5D%22%2Cnull%2C%221%22%5D%5D%5D`;
+  const inner = [[null, [opts.appId, 7], []]];
+  const body = `f.req=${encodeURIComponent(JSON.stringify([[['xdSrCf', JSON.stringify(inner), null, '1']]]))}`;
   const url = `${BASE_URL}/_/PlayStoreUi/data/batchexecute?rpcids=qnKhOb&f.sid=-697906427155521722&bl=boq_playuiserver_20190903.08_p0&hl=${encodeURIComponent(lang)}&gl=${encodeURIComponent(country)}&authuser&soc-app=121&soc-platform=1&soc-device=1&_reqid=1065213`;
   const headers = { 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8' };
   const html = await request({ url, method: 'POST', body, headers, country });

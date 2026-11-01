@@ -41,4 +41,12 @@ describe('modules/permissions', () => {
     expect(await permissions({ appId: 'com.test' })).to.deep.equal([]);
     scope.done();
   });
+
+  it('sends the appId as JSON in the request body', async () => {
+    let fReq;
+    const scope = nock(BASE_URL).post(/\/batchexecute/, (b) => { fReq = b['f.req']; return true; }).reply(200, ")]}'\n[]");
+    await permissions({ appId: 'com.test' });
+    expect(JSON.parse(JSON.parse(fReq)[0][0][1])).to.deep.equal([[null, ['com.test', 7], []]]);
+    scope.done();
+  });
 });

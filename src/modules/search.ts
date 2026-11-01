@@ -31,12 +31,12 @@ interface SearchState {
 
 function normalizeSearchOptions(opts: SearchOptions): SearchState {
   if (!opts || !opts.term) throw new Error('Search term missing');
-  if (opts.num && opts.num > 250) throw new Error("The number of results can't exceed 250");
+  if (opts.num !== undefined && (opts.num < 0 || opts.num > 250)) throw new Error('num must be between 0 and 250');
   return {
     term: encodeURIComponent(opts.term),
     lang: opts.lang || 'en',
     country: opts.country || 'us',
-    num: opts.num || 20,
+    num: opts.num ?? 20,
     fullDetail: opts.fullDetail,
     price: opts.price ? getPriceGoogleValue(opts.price) : 0,
     requestOptions: opts.requestOptions,
