@@ -30,9 +30,15 @@ interface SearchState {
   backfillSummaries?: boolean;
 }
 
+// Play serves at most 30 results per query and no further pages: no continuation token, the page-size
+// RPC re-sends the same 30 (or nothing from 60 up), and start/num URL params are ignored (checked Nov 2026).
+const MAX_SEARCH_RESULTS = 30;
+
 function normalizeSearchOptions(opts: SearchOptions): SearchState {
   if (!opts || !opts.term) throw new Error('Search term missing');
-  if (opts.num !== undefined && (opts.num < 0 || opts.num > 250)) throw new Error('num must be between 0 and 250');
+  if (opts.num !== undefined && (opts.num < 0 || opts.num > MAX_SEARCH_RESULTS)) {
+    throw new Error(`num must be between 0 and ${MAX_SEARCH_RESULTS}: Play serves at most ${MAX_SEARCH_RESULTS} search results`);
+  }
   return {
     term: encodeURIComponent(opts.term),
     lang: opts.lang || 'en',
@@ -165,6 +171,7 @@ export interface SearchOptions {
   term: string;
   lang?: string;
   country?: string;
+  /** Maximum results, 0–30 (default 20). Play serves at most 30 results per query, with no further pages. */
   num?: number;
   fullDetail?: boolean;
   price?: 'all' | 'free' | 'paid';

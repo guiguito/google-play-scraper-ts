@@ -244,7 +244,7 @@ describe('modules/search', () => {
       .reply(200, html, { 'Content-Type': 'text/html' });
     const postScope = nock(BASE_URL).post(/batchexecute/).reply(200, rpcResponse);
 
-    const res = await search(() => Promise.resolve(), { term: 'test', num: 200, lang: 'en', country: 'us' });
+    const res = await search(() => Promise.resolve(), { term: 'test', num: 30, lang: 'en', country: 'us' });
     expect(res.map((item) => item.appId)).to.deep.equal(['com.first']);
     expect(postScope.isDone()).to.equal(false);
     getScope.done();
