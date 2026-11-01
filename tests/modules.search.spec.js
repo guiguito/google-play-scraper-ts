@@ -230,59 +230,23 @@ describe('modules/search', () => {
     scope.done();
   });
 
-  it('uses modern store RPC when descriptor is available and caps requested page size to 60', async () => {
+  // Live Play (Nov 2026) serves every result (30) on the /store/search page with no continuation token;
+  // the lGYRle RPC only re-sends the same apps or nothing, so search() must not spend a request on it.
+  it('returns the first page without sending the store RPC', async () => {
     const firstPageDs4 = buildStoreListDs4([buildStoreListItem({ appId: 'com.first' })], null);
     const requestDescriptor = [[[], [[8, [20, 20]]], ['test'], 4, [null, 1], null, null, [], [1]], [1]];
     const html = buildStoreSearchHtml({ ds4: firstPageDs4, includeRpcDescriptor: true, requestDescriptor });
-
-    const rpcDs4 = buildStoreListDs4(
-      [
-        buildStoreListItem({ appId: 'com.first' }),
-        buildStoreListItem({ appId: 'com.second', title: 'Second App', developer: 'Second Dev' }),
-        buildStoreListItem({ appId: 'com.third', title: 'Third App', developer: 'Third Dev' }),
-      ],
-      null
-    );
+    const rpcDs4 = buildStoreListDs4([buildStoreListItem({ appId: 'com.second' })], null);
     const rpcResponse = `)]}'\n${JSON.stringify([['wrb.fr', 'lGYRle', JSON.stringify(rpcDs4), null, null, null, 'generic']])}`;
 
     const getScope = nock(BASE_URL)
       .get((uri) => uri.startsWith('/store/search'))
       .reply(200, html, { 'Content-Type': 'text/html' });
-
-    const postScope = nock(BASE_URL)
-      .post((uri) => uri.startsWith('/_/PlayStoreUi/data/batchexecute?rpcids=lGYRle'), (body) => {
-        const serialized = typeof body === 'string' ? decodeURIComponent(body) : JSON.stringify(body);
-        return serialized.includes('lGYRle') && serialized.includes('[20,60]');
-      })
-      .reply(200, rpcResponse, { 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8' });
+    const postScope = nock(BASE_URL).post(/batchexecute/).reply(200, rpcResponse);
 
     const res = await search(() => Promise.resolve(), { term: 'test', num: 200, lang: 'en', country: 'us' });
-    expect(res).to.have.lengthOf(3);
-    expect(res.map((item) => item.appId)).to.deep.equal(['com.first', 'com.second', 'com.third']);
-
+    expect(res.map((item) => item.appId)).to.deep.equal(['com.first']);
+    expect(postScope.isDone()).to.equal(false);
     getScope.done();
-    postScope.done();
-  });
-
-  it('falls back to first page when modern store RPC returns no payload', async () => {
-    const firstPageDs4 = buildStoreListDs4([buildStoreListItem({ appId: 'com.first' })], null);
-    const requestDescriptor = [[[], [[8, [20, 20]]], ['test'], 4, [null, 1], null, null, [], [1]], [1]];
-    const html = buildStoreSearchHtml({ ds4: firstPageDs4, includeRpcDescriptor: true, requestDescriptor });
-    const rpcError = `)]}'\n${JSON.stringify([['wrb.fr', 'lGYRle', null, null, null, [3], 'generic']])}`;
-
-    const getScope = nock(BASE_URL)
-      .get((uri) => uri.startsWith('/store/search'))
-      .reply(200, html, { 'Content-Type': 'text/html' });
-
-    const postScope = nock(BASE_URL)
-      .post((uri) => uri.startsWith('/_/PlayStoreUi/data/batchexecute?rpcids=lGYRle'))
-      .reply(200, rpcError, { 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8' });
-
-    const res = await search(() => Promise.resolve(), { term: 'test', num: 3, lang: 'en', country: 'us' });
-    expect(res).to.have.lengthOf(1);
-    expect(res[0].appId).to.equal('com.first');
-
-    getScope.done();
-    postScope.done();
   });
 });
