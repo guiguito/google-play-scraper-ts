@@ -110,8 +110,9 @@ const MAPPINGS: GenericMappings = {
       const container = searchArray[4];
       if (!Array.isArray(container)) return undefined;
       const detail = container[2];
-      if (!Array.isArray(detail) || !Array.isArray(detail[0])) return undefined;
-      const address = detail[0][0];
+      if (!Array.isArray(detail)) return undefined;
+      // Older pages nest the address one level deeper ([[address]]); current ones send [address].
+      const address = Array.isArray(detail[0]) ? detail[0][0] : detail[0];
       return typeof address === 'string' ? address.replace(/\n/g, ', ') : undefined;
     },
   },

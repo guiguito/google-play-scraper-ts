@@ -67,6 +67,22 @@ describe('modules/app', () => {
     scope.done();
   });
 
+  // Live shape (Nov 2026): the legal address is a flat string list, one level shallower than before.
+  it('reads the legal address in the flat shape Play serves now', async () => {
+    const details = [];
+    setPath(details, [1, 2, 0, 0], 'Clash of Clans');
+    setPath(details, [1, 2, 69, 4], ['Supercell Oy', null, ['Jätkäsaarenlaituri 1\n00180 HELSINKI\nFinland']]);
+    const html = `<script>AF_initDataCallback({key: 'ds:5', data: ${JSON.stringify(details)}, sideChannel: {}});</script>`;
+    const scope = nock(BASE_URL)
+      .get((uri) => uri.startsWith('/store/apps/details'))
+      .reply(200, html, { 'Content-Type': 'text/html' });
+
+    const result = await app({ appId: 'com.supercell.clashofclans' });
+    expect(result.developerLegalName).to.equal('Supercell Oy');
+    expect(result.developerLegalAddress).to.equal('Jätkäsaarenlaituri 1, 00180 HELSINKI, Finland');
+    scope.done();
+  });
+
   it('applies fallbacks for missing fields and normalizes values', async () => {
     const details = [];
     setPath(details, [1, 2, 57, 0, 0, 0, 0, 1, 0, 0], 1_230_000_00);
