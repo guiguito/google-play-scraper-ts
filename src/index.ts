@@ -54,7 +54,8 @@ export function configureProxies(settings?: ProxySettings | null): void {
 }
 
 export function createPlayStoreApi(options?: CreatePlayStoreApiOptions): PlayStoreApi {
-  applyProxyConfig(options?.proxies ?? null);
+  // Proxy settings are process-wide; only replace them when the caller passes `proxies` (null clears).
+  if (options && 'proxies' in options) applyProxyConfig(options.proxies);
   return options?.memoize ? memoized(options.memoize) : { ...baseApi, memoized };
 }
 
