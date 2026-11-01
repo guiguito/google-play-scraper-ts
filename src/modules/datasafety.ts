@@ -3,14 +3,21 @@ import { request } from '../http/client';
 import * as scriptData from '../utils/scriptData';
 import type { DataSafety, DataSafetyItem, JsonValue } from '../types';
 
-export interface DataSafetyOptions { appId: string; lang?: string; country?: string }
+export interface DataSafetyOptions {
+  appId: string;
+  lang?: string;
+  /** Only used to pick a per-country proxy. */
+  country?: string;
+  /** Extra HTTP headers for every request this call makes (including app() fan-outs). */
+  requestOptions?: { headers?: Record<string, string> };
+}
 
 export async function datasafety(opts: DataSafetyOptions): Promise<DataSafety> {
   if (!opts || !opts.appId) throw new Error('appId missing');
   const PLAYSTORE_URL = `${BASE_URL}/store/apps/datasafety`;
   const searchParams = new URLSearchParams({ id: opts.appId, hl: opts.lang || 'en' });
   const reqUrl = `${PLAYSTORE_URL}?${searchParams}`;
-  const html = await request({ url: reqUrl, method: 'GET', country: opts.country });
+  const html = await request({ url: reqUrl, method: 'GET', headers: opts.requestOptions?.headers, country: opts.country });
   const parsed = scriptData.parse(html);
   const mapped = scriptData.extractor<DataSafety>(MAPPINGS)(parsed);
   return mapped;

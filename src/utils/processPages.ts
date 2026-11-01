@@ -4,7 +4,7 @@ import appList from './appList';
 import { request } from '../http/client';
 import type { JsonValue } from '../types';
 import type { AppListItem } from './appList';
-import { fetchFullDetails } from './hydrateMissingSummaries';
+import { fetchFullDetails, type DetailArgs } from './hydrateMissingSummaries';
 
 export interface ProcessMappings {
   apps: ReadonlyArray<string | number>;
@@ -20,11 +20,7 @@ export interface PageOptions {
   requestOptions?: { headers?: Record<string, string> };
 }
 
-export type AppDetailsFn<T> = (args: {
-  appId: string;
-  lang: string;
-  country: string;
-}) => Promise<T>;
+export type AppDetailsFn<T> = (args: DetailArgs) => Promise<T>;
 
 export async function processPages<T = AppListItem>(
   html: string | JsonValue,

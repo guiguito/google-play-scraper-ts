@@ -29,6 +29,8 @@ The format is based on Keep a Changelog, and this project adheres to Semantic Ve
 - `fullDetail` results leave out apps whose detail page returns 404 instead of rejecting the whole call.
 - `memoized()` shares one request between concurrent identical calls, no longer caches failures, and keys by method name.
 ### Added
+- `requestOptions.headers` on every method, forwarded to `fullDetail` and backfill `app()` calls too.
+- `backfillSummaries: false` on list, search, developer and similar skips the per-entry summary backfill.
 - Exported types `AppDetails`, `AppSummary`, `Review`, `PermissionItem`, `DataSafety`, `DataSafetyItem`, option types, and the `HttpError` and `NotFoundError` classes; 404 responses now reject with `NotFoundError` (a subclass of `HttpError`).
 ### Removed
 - Unused internals: the never-populated cookie jar (`createClient`), the `onProxyResolved` hook, `extractFeatures`, `ParseError`.

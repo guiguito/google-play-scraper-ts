@@ -1,5 +1,6 @@
 import { BASE_URL } from '../constants';
 import { request } from '../http/client';
+import { app } from './app';
 import * as scriptData from '../utils/scriptData';
 import { checkFinished } from '../utils/processPages';
 import { fetchFullDetails, hydrateMissingSummaries } from '../utils/hydrateMissingSummaries';
@@ -19,15 +20,19 @@ export interface DeveloperOptions {
   country?: string;
   num?: number;
   fullDetail?: boolean;
+  /** Extra HTTP headers for every request this call makes (including app() fan-outs). */
+  requestOptions?: { headers?: Record<string, string> };
+  /** Set to false to skip the extra app() request per entry that lacks a summary. Default true. */
+  backfillSummaries?: boolean;
 }
 
 export async function developer(opts: DeveloperOptions): Promise<AppListItem[] | AppDetails[]> {
   if (!opts.devId) throw new Error('devId missing');
   const merged = { ...opts, num: opts.num ?? 60, lang: opts.lang ?? 'en', country: opts.country ?? 'us' };
   const url = buildUrl(merged);
-  const html = await request({ url, method: 'GET', country: merged.country });
+  const html = await request({ url, method: 'GET', headers: opts.requestOptions?.headers, country: merged.country });
   const parsed = scriptData.parse(html);
-  return parseDeveloperApps(parsed, { ...merged, fullDetail: !!merged.fullDetail });
+  return parseDeveloperApps(parsed, merged);
 }
 
 
@@ -39,7 +44,7 @@ export async function developer(opts: DeveloperOptions): Promise<AppListItem[] |
 
 
 
-async function parseDeveloperApps(html: JsonValue, opts: { devId: string; num: number; lang: string; country: string; fullDetail?: boolean }) {
+async function parseDeveloperApps(html: JsonValue, opts: DeveloperOptions & { num: number; lang: string; country: string }) {
   const parsed = typeof html === 'string' ? scriptData.parse(html) : html;
   const usesTextId = Number.isNaN(Number(opts.devId));
   const initialMappings = usesTextId
@@ -53,18 +58,12 @@ async function parseDeveloperApps(html: JsonValue, opts: { devId: string; num: n
   const tokenValue = scriptData.getPathValue(parsed, initialMappings.token);
   const token = typeof tokenValue === 'string' ? tokenValue : undefined;
   const apps = await checkFinished(
-    { num: opts.num, numberOfApps: opts.num, lang: opts.lang, country: opts.country },
+    { num: opts.num, numberOfApps: opts.num, lang: opts.lang, country: opts.country, requestOptions: opts.requestOptions },
     processedApps,
     token
   );
-  const fetchDetails = async ({ appId, lang, country }: { appId: string; lang: string; country: string }) => {
-    const { app } = await import('./app');
-    return app({ appId, lang, country });
-  };
-  if (opts.fullDetail) {
-    return fetchFullDetails(apps, opts, fetchDetails);
-  }
-  return hydrateMissingSummaries(apps, { lang: opts.lang, country: opts.country }, fetchDetails);
+  if (opts.fullDetail) return fetchFullDetails(apps, opts, app);
+  return hydrateMissingSummaries(apps, opts, app);
 }
 
 export default developer;

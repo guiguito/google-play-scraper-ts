@@ -227,4 +227,24 @@ describe('modules/list', () => {
     await list({ num: 2, fullDetail: true }).catch((e) => { err = e; });
     expect(err && err.status).to.equal(403);
   });
+
+  it('forwards requestOptions headers to the summary backfill, which backfillSummaries: false skips', async () => {
+    const item = buildListItem();
+    item[0][13] = [null, null];
+    const body = `x\n${JSON.stringify([[null, null, JSON.stringify(buildCollectionPayload([item]))]])}\n`;
+    const headers = { 'X-Test': 'yes' };
+
+    nock(BASE_URL, { reqheaders: headers }).post(/\/batchexecute/).reply(200, body);
+    const appScope = nock(BASE_URL, { reqheaders: headers }).get((u) => u.startsWith('/store/apps/details')).reply(200, '<html></html>');
+    await list({ num: 1, requestOptions: { headers } });
+    appScope.done();
+
+    const listScope = nock(BASE_URL).post(/\/batchexecute/).reply(200, body);
+    let detailsRequested = false;
+    nock(BASE_URL).get((u) => u.startsWith('/store/apps/details')).reply(() => { detailsRequested = true; return [200, '']; });
+    const res = await list({ num: 1, backfillSummaries: false });
+    expect(res[0].summary).to.equal(undefined);
+    expect(detailsRequested).to.equal(false);
+    listScope.done();
+  });
 });

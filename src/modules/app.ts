@@ -1,5 +1,5 @@
 import { BASE_URL } from '../constants';
-import { extractor, type GenericMappings } from '../utils/scriptData';
+import { extractor, parse, type GenericMappings } from '../utils/scriptData';
 import helper from '../utils/mappingHelpers';
 import { request } from '../http/client';
 import type { AppDetails, JsonValue } from '../types';
@@ -22,7 +22,6 @@ export async function app(opts: AppOptions): Promise<AppDetails> {
   const reqUrl = `${BASE_URL}/store/apps/details?${params.toString()}`;
 
   const html = await request({ url: reqUrl, method: 'GET', headers: opts.requestOptions?.headers, country });
-  const parse = (await import('../utils/scriptData')).default.parse; // avoid cycle
   const data = parse(html);
   const mapped = extractor<Omit<AppDetails, 'appId' | 'url'>>(MAPPINGS)(data);
   return {

@@ -45,7 +45,7 @@ const topFreeMusic = await gplay.list({
 
 - `lang` controls the Play Store UI language (default `'en'`).
 - `country` controls geotargeting and pricing (default `'us'`).
-- Methods that accept `requestOptions` forward `requestOptions.headers` to the underlying HTTP client so you can inject cookies or additional headers.
+- Every method (except `categories`) accepts `requestOptions: { headers }`; the headers are sent with every request the call makes, including the `app()` requests behind `fullDetail` and the summary backfill.
 - Every function returns a Promise; runtime errors (invalid inputs, store shape changes, HTTP failures) surface as rejected promises. HTTP failures reject with `HttpError` (exported, with `status` and `body`); 404s, e.g. an unknown app, reject with its subclass `NotFoundError`.
 - Methods with `fullDetail` are overloaded: `fullDetail: true` resolves to `AppDetails[]`, otherwise to `AppSummary[]`. With `fullDetail`, apps whose detail page returns 404 (removed, or not offered in that country) are left out; any other error rejects the call.
 
@@ -405,7 +405,7 @@ The enums are available as the named export `constants` (and spread at the top l
 - **Retries** – The internal HTTP client retries network errors, 5xx and 429 (rate limited) responses twice with exponential backoff (300 ms, 600 ms), waiting longer when Play sends a `Retry-After` header (capped at 60 s).
 - **Timeouts** – Requests time out after 30 s of socket inactivity, then count as a retriable network error.
 - **Concurrency** – At most 5 requests are open at once across the process; extra requests (e.g. `fullDetail` fan-outs) wait for a free slot.
-- **Summary backfill** – When a list/search/developer/similar result lacks a summary, one `app()` call is made per such entry to fill it in; failures are ignored.
+- **Summary backfill** – When a list/search/developer/similar result lacks a summary, one `app()` call is made per such entry to fill it in; failures are ignored. Pass `backfillSummaries: false` to skip these requests.
 - **Caching** – Use `memoized()` to deduplicate hot requests. For full control, combine with your own throttling or caching layer.
 
 ## TypeScript support

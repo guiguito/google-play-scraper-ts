@@ -10,6 +10,8 @@ export interface PermissionsOptions {
   lang?: string;
   country?: string;
   short?: boolean;
+  /** Extra HTTP headers for every request this call makes (including app() fan-outs). */
+  requestOptions?: { headers?: Record<string, string> };
 }
 
 export function permissions(opts: PermissionsOptions & { short: true }): Promise<string[]>;
@@ -22,7 +24,7 @@ export async function permissions(opts: PermissionsOptions): Promise<string[] | 
   const inner = [[null, [opts.appId, 7], []]];
   const body = `f.req=${encodeURIComponent(JSON.stringify([[['xdSrCf', JSON.stringify(inner), null, '1']]]))}`;
   const url = `${BASE_URL}/_/PlayStoreUi/data/batchexecute?rpcids=qnKhOb&f.sid=-697906427155521722&bl=boq_playuiserver_20190903.08_p0&hl=${encodeURIComponent(lang)}&gl=${encodeURIComponent(country)}&authuser&soc-app=121&soc-platform=1&soc-device=1&_reqid=1065213`;
-  const headers = { 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8' };
+  const headers = { 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8', ...opts.requestOptions?.headers };
   const html = await request({ url, method: 'POST', body, headers, country });
   const input = JSON.parse(html.substring(5)) as JsonValue;
   const payload = Array.isArray(input) && Array.isArray(input[0]) ? input[0][2] : undefined;

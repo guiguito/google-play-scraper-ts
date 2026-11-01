@@ -1,5 +1,6 @@
 import { BASE_URL } from '../constants';
 import { request } from '../http/client';
+import { app } from './app';
 import * as scriptData from '../utils/scriptData';
 import { processPages, checkFinished, type ProcessMappings } from '../utils/processPages';
 import appList, { cardMappings } from '../utils/appList';
@@ -28,21 +29,25 @@ export interface SimilarOptions {
   lang?: string;
   country?: string;
   fullDetail?: boolean;
+  /** Extra HTTP headers for every request this call makes (including app() fan-outs). */
+  requestOptions?: { headers?: Record<string, string> };
+  /** Set to false to skip the extra app() request per entry that lacks a summary. Default true. */
+  backfillSummaries?: boolean;
 }
 
 export async function similar(opts: SimilarOptions): Promise<AppListItem[] | AppDetails[]> {
   if (!opts || !opts.appId) throw new Error('appId missing');
-  const merged = { appId: opts.appId, lang: opts.lang || 'en', country: opts.country || 'us', fullDetail: opts.fullDetail };
+  const merged = { ...opts, lang: opts.lang || 'en', country: opts.country || 'us' };
   const qs = new URLSearchParams({ id: merged.appId, hl: merged.lang, gl: merged.country }).toString();
   const similarUrl = `${BASE_URL}/store/apps/details?${qs}`;
-  const html = await request({ url: similarUrl, method: 'GET', country: merged.country });
+  const html = await request({ url: similarUrl, method: 'GET', headers: opts.requestOptions?.headers, country: merged.country });
   const parsed = scriptData.parse(html);
   return parseSimilarApps(parsed, merged);
 }
 
 async function parseSimilarApps(
   similarObject: scriptData.ParsedScriptData,
-  opts: { appId: string; lang: string; country: string; fullDetail?: boolean }
+  opts: SimilarOptions & { lang: string; country: string }
 ) {
   const clustersValue = scriptData.extractDataWithServiceRequestId(similarObject, INITIAL_MAPPINGS.clusters);
   // Play lists "More by <developer>" before the similar cluster, with localized titles. The developer's
@@ -69,12 +74,8 @@ async function parseSimilarApps(
     // ponytail: no cluster to page through, so cap at the 60 apps a cluster would give.
     const refined = extractAnyApps(similarObject).filter((a) => a.appId !== opts.appId).slice(0, 60);
     if (refined.length > 0) {
-      if (opts.fullDetail) return fetchFullDetail(refined, opts);
-      const fetchDetails = async ({ appId, lang, country }: { appId: string; lang: string; country: string }) => {
-        const { app } = await import('./app');
-        return app({ appId, lang, country });
-      };
-      return hydrateMissingSummaries(refined, opts, fetchDetails);
+      if (opts.fullDetail) return fetchFullDetails(refined, opts, app);
+      return hydrateMissingSummaries(refined, opts, app);
     }
     throw new Error('Similar apps not found');
   }
@@ -82,32 +83,20 @@ async function parseSimilarApps(
   if (!clusterUrl) throw new Error('Similar cluster URL not found');
 
   const fullClusterUrl = `${BASE_URL}${clusterUrl}&gl=${encodeURIComponent(opts.country)}&hl=${encodeURIComponent(opts.lang)}`;
-  const html = await request({ url: fullClusterUrl, method: 'GET', country: opts.country });
+  const html = await request({ url: fullClusterUrl, method: 'GET', headers: opts.requestOptions?.headers, country: opts.country });
   const parsed = scriptData.parse(html);
 
   // First cluster page has a different mapping than subsequent batchexecute pages.
   const firstPageApps = extractFirstPageApps(parsed);
-  const apps = opts.fullDetail ? await fetchFullDetail(firstPageApps, opts) : firstPageApps;
+  const apps = opts.fullDetail ? await fetchFullDetails(firstPageApps, opts, app) : firstPageApps;
   const tokenValue = scriptData.getPathValue(parsed, INITIAL_MAPPINGS.token);
   const token = typeof tokenValue === 'string' ? tokenValue : undefined;
 
   // Continue with batchexecute paging which uses appList mappings.
-  const appDetails = async ({ appId, lang, country }: { appId: string; lang: string; country: string }) => {
-    const { app } = await import('./app');
-    return app({ appId, lang, country });
-  };
-  const paged = await checkFinished(
-    { num: 60, numberOfApps: 60, fullDetail: opts.fullDetail, lang: opts.lang, country: opts.country },
-    apps,
-    token,
-    appDetails
-  );
-  if (opts.fullDetail) return paged;
-  const fetchDetails = async ({ appId, lang, country }: { appId: string; lang: string; country: string }) => {
-    const { app } = await import('./app');
-    return app({ appId, lang, country });
-  };
-  return hydrateMissingSummaries(paged as AppListItem[], opts, fetchDetails);
+  const pageOpts = { num: 60, numberOfApps: 60, fullDetail: opts.fullDetail, lang: opts.lang, country: opts.country, requestOptions: opts.requestOptions };
+  const paged = await checkFinished<AppListItem | AppDetails>(pageOpts, apps, token, app);
+  if (opts.fullDetail) return paged as AppDetails[];
+  return hydrateMissingSummaries(paged as AppListItem[], opts, app);
 }
 
 function getParsedCluster(similarObject: JsonValue | undefined) {
@@ -149,11 +138,6 @@ function mapAnyCard(node: JsonValue): AppListItem {
 function extractFirstPageApps(parsed: JsonValue): AppListItem[] {
   const items = scriptData.getPathValue(parsed, INITIAL_MAPPINGS.apps);
   return Array.isArray(items) ? items.map(mapAnyCard) : [];
-}
-
-async function fetchFullDetail(apps: AppListItem[], opts: { lang: string; country: string }) {
-  const { app } = await import('./app');
-  return fetchFullDetails(apps, opts, app);
 }
 
 function extractAnyApps(parsed: JsonValue): AppListItem[] {

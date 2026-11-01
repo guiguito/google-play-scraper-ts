@@ -27,6 +27,7 @@ interface SearchState {
   fullDetail?: boolean;
   price: number;
   requestOptions?: { headers?: Record<string, string> };
+  backfillSummaries?: boolean;
 }
 
 function normalizeSearchOptions(opts: SearchOptions): SearchState {
@@ -40,6 +41,7 @@ function normalizeSearchOptions(opts: SearchOptions): SearchState {
     fullDetail: opts.fullDetail,
     price: opts.price ? getPriceGoogleValue(opts.price) : 0,
     requestOptions: opts.requestOptions,
+    backfillSummaries: opts.backfillSummaries,
   };
 }
 
@@ -166,7 +168,10 @@ export interface SearchOptions {
   num?: number;
   fullDetail?: boolean;
   price?: 'all' | 'free' | 'paid';
+  /** Extra HTTP headers for every request this call makes (including app() fan-outs). */
   requestOptions?: { headers?: Record<string, string> };
+  /** Set to false to skip the extra app() request per entry that lacks a summary. Default true. */
+  backfillSummaries?: boolean;
 }
 
 export async function search(
@@ -176,7 +181,7 @@ export async function search(
   const state = normalizeSearchOptions(opts);
   const results = await initialStoreRequest(state);
   if (state.fullDetail) return fetchFullDetails(results, state, appFetcher);
-  return hydrateMissingSummaries(results, { lang: state.lang, country: state.country }, appFetcher);
+  return hydrateMissingSummaries(results, state, appFetcher);
 }
 
 export default search;

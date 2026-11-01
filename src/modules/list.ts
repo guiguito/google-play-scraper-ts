@@ -1,5 +1,6 @@
 import { BASE_URL, constants } from '../constants';
 import { request } from '../http/client';
+import { app } from './app';
 import { HttpError } from '../errors';
 import * as scriptData from '../utils/scriptData';
 import { fetchFullDetails, hydrateMissingSummaries } from '../utils/hydrateMissingSummaries';
@@ -39,6 +40,10 @@ export interface ListOptions {
   country?: string;
   num?: number;
   fullDetail?: boolean;
+  /** Extra HTTP headers for every request this call makes (including app() fan-outs). */
+  requestOptions?: { headers?: Record<string, string> };
+  /** Set to false to skip the extra app() request per entry that lacks a summary. Default true. */
+  backfillSummaries?: boolean;
 }
 
 
@@ -69,7 +74,7 @@ export async function list(opts: ListOptions): Promise<AppListItem[] | AppDetail
   }
 
   const url = buildInitialUrl(fullListOpts);
-  const headers = { 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8' };
+  const headers = { 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8', ...fullListOpts.requestOptions?.headers };
   let html: string;
   try {
     const dynBody = buildDynamicBody({ num: fullListOpts.num!, collection: clusterName, category });
@@ -98,14 +103,9 @@ export async function list(opts: ListOptions): Promise<AppListItem[] | AppDetail
   const processedApps = Array.isArray(appsSection) ? appsSection.map((entry) => mapApp(entry)) : [];
 
   if (fullListOpts.fullDetail) {
-    const { app } = await import('./app');
     return fetchFullDetails(processedApps, fullListOpts, app);
   }
-  const fetchDetails = async ({ appId, lang, country }: { appId: string; lang: string; country: string }) => {
-    const { app } = await import('./app');
-    return app({ appId, lang, country });
-  };
-  return hydrateMissingSummaries(processedApps, { lang: fullListOpts.lang, country: fullListOpts.country }, fetchDetails);
+  return hydrateMissingSummaries(processedApps, fullListOpts, app);
 }
 
 function parseBatchexecute(html: string): JsonValue | null {
