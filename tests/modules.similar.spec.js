@@ -10,8 +10,7 @@ describe('modules/similar', () => {
     // Details page with AF_dataServiceRequests providing clusters
     const cluster = [];
     cluster[21] = [null, ['Similar apps', null, [null, null, null, null, ['', '', '/store/apps/collection/cluster']]]];
-    const clusterText = JSON.stringify([cluster]).replace(/\"/g, "'");
-    const dsText = `{'ds:tag': { id: 'ag2B9c', 1: { 1: ${clusterText} } }}`;
+    const dsText = `{'ds:tag' : {id:'ag2B9c',request:[]}}`;
     const afInit = `<script>AF_initDataCallback({key: 'ds:tag', data: ${JSON.stringify({ 1: { 1: [cluster] } })}, sideChannel: {}});</script>`;
     const legacyHtml = `<script>AF_initDataCallback({key: 'ds:3', data: null, sideChannel: {}});</script>`;
     const detailsHtml = `${afInit}; var AF_dataServiceRequests ${dsText}; var AF_initDataChunkQueue${legacyHtml}`;
@@ -36,7 +35,7 @@ describe('modules/similar', () => {
       .reply(200, clusterHtml, { 'Content-Type': 'text/html' });
 
     const res = await similar({ appId: 'com.foo', lang: 'en', country: 'us' });
-    expect(Array.isArray(res)).to.equal(true);
+    expect(res.map((a) => a.appId)).to.deep.equal(['com.cluster.app']);
     scope1.done();
     scope2.done();
   });
@@ -79,11 +78,10 @@ describe('modules/similar', () => {
     expect(res.map((a) => a.appId)).to.deep.equal(['com.similar.app']);
   });
 
-  it('falls back to service requests when cluster id changes', async () => {
+  it('scans the whole page when the service request id changes', async () => {
     const cluster = [];
     cluster[21] = [null, ['Similar apps', null, [null, null, null, null, ['', '', '/store/apps/collection/cluster/fallback']]]];
-    const clusterText = JSON.stringify([cluster]).replace(/\"/g, "'");
-    const dsText = `{'ds:tag': { id: 'new-cluster-id', 1: { 1: ${clusterText} } }}`;
+    const dsText = `{'ds:tag' : {id:'new-cluster-id',request:[]}}`;
     const afInit = `<script>AF_initDataCallback({key: 'ds:tag', data: ${JSON.stringify({ 1: { 1: [cluster] } })}, sideChannel: {}});</script>`;
     const legacyHtml = `<script>AF_initDataCallback({key: 'ds:3', data: null, sideChannel: {}});</script>`;
     const detailsHtml = `${afInit}; var AF_dataServiceRequests ${dsText}; var AF_initDataChunkQueue${legacyHtml}`;
@@ -113,12 +111,11 @@ describe('modules/similar', () => {
     scope2.done();
   });
 
-  it('finds clusters nested inside service request objects', async () => {
+  it('finds clusters nested deeper inside the ds block', async () => {
     const cluster = [];
     cluster[21] = [null, ['Similar games', null, [null, null, null, null, ['', '', '/store/apps/collection/cluster/nested']]]];
     const nested = { wrapper: cluster };
-    const nestedText = JSON.stringify(nested).replace(/"/g, "'");
-    const dsText = `{'ds:tag': { id: 'ag2B9c', 1: { 1: ${nestedText} } }}`;
+    const dsText = `{'ds:tag' : {id:'ag2B9c',request:[]}}`;
     const afInit = `<script>AF_initDataCallback({key: 'ds:tag', data: ${JSON.stringify({ 1: { 1: nested } })}, sideChannel: {}});</script>`;
     const detailsHtml = `${afInit}; var AF_dataServiceRequests ${dsText}; var AF_initDataChunkQueue`;
 
@@ -149,8 +146,7 @@ describe('modules/similar', () => {
   it('falls back to the first cluster when labels change', async () => {
     const cluster = [];
     cluster[21] = [null, ['Recommended for you', null, [null, null, null, null, ['', '', '/store/apps/collection/cluster/recommended']]]];
-    const clusterText = JSON.stringify([cluster]).replace(/\"/g, "'");
-    const dsText = `{'ds:tag': { id: 'ag2B9c', 1: { 1: ${clusterText} } }}`;
+    const dsText = `{'ds:tag' : {id:'ag2B9c',request:[]}}`;
     const afInit = `<script>AF_initDataCallback({key: 'ds:tag', data: ${JSON.stringify({ 1: { 1: [cluster] } })}, sideChannel: {}});</script>`;
     const detailsHtml = `${afInit}; var AF_dataServiceRequests ${dsText}; var AF_initDataChunkQueue`;
 
