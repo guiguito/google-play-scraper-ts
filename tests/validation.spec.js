@@ -17,13 +17,13 @@ describe('validation and edge cases', () => {
     expect(threw).to.equal(true);
   });
 
-  it('search: throws when term missing and when num > 250', async () => {
+  it('search: throws when term missing and when num > 30', async () => {
     let threw1 = false; let threw2 = false;
     try { // @ts-ignore
       await search(() => Promise.resolve(), {});
     } catch (e) { threw1 = true; }
     try {
-      await search(() => Promise.resolve(), { term: 'x', num: 300 });
+      await search(() => Promise.resolve(), { term: 'x', num: 31 });
     } catch (e) { threw2 = true; }
     expect(threw1).to.equal(true);
     expect(threw2).to.equal(true);
