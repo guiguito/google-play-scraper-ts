@@ -11,7 +11,6 @@ module.exports = [
       'coverage/**',
       'reference/**',
       'doc/**',
-      'examples/**',
       'node_modules/**',
       'eslint.config.cjs'
     ]
@@ -88,7 +87,7 @@ module.exports = [
     }
   },
   {
-    files: ['tests/**/*.js', 'tests/**/*.ts'],
+    files: ['tests/**/*.js', 'tests/**/*.ts', 'tests/**/*.mts', 'examples/**/*.mts'],
     languageOptions: {
       ecmaVersion: 'latest',
       sourceType: 'module',
@@ -101,7 +100,8 @@ module.exports = [
         process: 'readonly',
         URL: 'readonly',
         fetch: 'readonly',
-        setTimeout: 'readonly'
+        setTimeout: 'readonly',
+        console: 'readonly'
       }
     },
     plugins: { '@typescript-eslint': tsPlugin },
