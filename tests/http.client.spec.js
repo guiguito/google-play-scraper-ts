@@ -3,13 +3,9 @@ const { EventEmitter } = require('node:events');
 const http = require('node:http');
 const https = require('node:https');
 const tls = require('node:tls');
-const { Headers: UndiciHeaders } = require('undici');
-const { request, createClient } = require('../dist/cjs/http/client.js');
-const { SimpleCookieJar } = require('../dist/cjs/http/cookies.js');
-const { HttpError } = require('../dist/cjs/errors.js');
+const { request } = require('../dist/cjs/http/client.js');
+const { HttpError, NotFoundError } = require('../dist/cjs/errors.js');
 const { configureProxy, resetProxyConfiguration } = require('../dist/cjs/http/proxyConfig.js');
-
-const HeadersCtor = global.Headers || UndiciHeaders;
 
 afterEach(() => {
   resetProxyConfiguration();
@@ -80,6 +76,7 @@ describe('http/client request', () => {
       await request({ url: 'http://fail.test/' }, { retries: 0, backoffMs: 0 });
       expect.fail('should have thrown');
     } catch (err) {
+      expect(err).to.be.instanceOf(NotFoundError);
       expect(err).to.be.instanceOf(HttpError);
       expect(err.status).to.equal(404);
       expect(err.body).to.equal('missing');
@@ -204,33 +201,5 @@ describe('proxy routing', () => {
       https.request = originals.https;
       tls.connect = originals.tls;
     }
-  });
-});
-
-describe('http/cookies SimpleCookieJar', () => {
-  it('stores cookies from headers and applies them per-domain', () => {
-    const jar = new SimpleCookieJar();
-    const headers = new HeadersCtor();
-    headers.set('set-cookie', 'session=abc; Path=/');
-    jar.setFromHeaders('https://cookie.test/', headers);
-    const applied = jar.apply('https://cookie.test/path', {});
-    expect(applied.Cookie).to.equal('session=abc');
-    const untouched = jar.apply('https://other.test/', { Existing: 'value' });
-    expect(untouched).to.deep.equal({ Existing: 'value' });
-  });
-
-  it('integrates with createClient to reuse cookies', async () => {
-    const client = createClient({ retries: 0, backoffMs: 0 });
-    const headers = new HeadersCtor();
-    headers.set('set-cookie', 'token=xyz; Path=/');
-    client.jar.setFromHeaders('http://cookie.test/', headers);
-
-    let capturedHeaders;
-    const restore = stubRequests([
-      { statusCode: 200, body: 'ok', inspect: (opts) => { capturedHeaders = opts.headers; } },
-    ]);
-    await client.request({ url: 'http://cookie.test/' });
-    expect(capturedHeaders.Cookie).to.equal('token=xyz');
-    restore();
   });
 });

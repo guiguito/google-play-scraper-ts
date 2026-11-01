@@ -1,5 +1,5 @@
 import { BASE_URL } from '../constants';
-import { request, createClient } from '../http/client';
+import { request } from '../http/client';
 import * as scriptData from '../utils/scriptData';
 import { processPages, checkFinished, type ProcessMappings } from '../utils/processPages';
 import appList, { cardMappings } from '../utils/appList';
@@ -35,16 +35,14 @@ export async function similar(opts: SimilarOptions): Promise<AppListItem[] | App
   const merged = { appId: opts.appId, lang: opts.lang || 'en', country: opts.country || 'us', fullDetail: opts.fullDetail };
   const qs = new URLSearchParams({ id: merged.appId, hl: merged.lang, gl: merged.country }).toString();
   const similarUrl = `${BASE_URL}/store/apps/details?${qs}`;
-  const client = createClient();
-  const html = await client.request({ url: similarUrl, method: 'GET', country: merged.country });
+  const html = await request({ url: similarUrl, method: 'GET', country: merged.country });
   const parsed = scriptData.parse(html);
-  return parseSimilarApps(parsed, merged, client);
+  return parseSimilarApps(parsed, merged);
 }
 
 async function parseSimilarApps(
   similarObject: scriptData.ParsedScriptData,
-  opts: { appId: string; lang: string; country: string; fullDetail?: boolean },
-  client = createClient()
+  opts: { appId: string; lang: string; country: string; fullDetail?: boolean }
 ) {
   const clustersValue = scriptData.extractDataWithServiceRequestId(similarObject, INITIAL_MAPPINGS.clusters);
   // Play lists "More by <developer>" before the similar cluster, with localized titles. The developer's
@@ -84,7 +82,7 @@ async function parseSimilarApps(
   if (!clusterUrl) throw new Error('Similar cluster URL not found');
 
   const fullClusterUrl = `${BASE_URL}${clusterUrl}&gl=${encodeURIComponent(opts.country)}&hl=${encodeURIComponent(opts.lang)}`;
-  const html = await client.request({ url: fullClusterUrl, method: 'GET', country: opts.country });
+  const html = await request({ url: fullClusterUrl, method: 'GET', country: opts.country });
   const parsed = scriptData.parse(html);
 
   // First cluster page has a different mapping than subsequent batchexecute pages.
@@ -102,8 +100,7 @@ async function parseSimilarApps(
     { num: 60, numberOfApps: 60, fullDetail: opts.fullDetail, lang: opts.lang, country: opts.country },
     apps,
     token,
-    appDetails,
-    ({ url, method, headers, body, country }) => client.request({ url, method, headers, body, country })
+    appDetails
   );
   if (opts.fullDetail) return paged;
   const fetchDetails = async ({ appId, lang, country }: { appId: string; lang: string; country: string }) => {

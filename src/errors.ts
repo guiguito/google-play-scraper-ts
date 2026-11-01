@@ -9,17 +9,10 @@ export class HttpError extends Error {
   }
 }
 
+/** Thrown for 404 responses, e.g. an unknown appId; still an HttpError. */
 export class NotFoundError extends HttpError {
-  constructor(message = 'App not found (404)') {
-    super(message, 404);
+  constructor(message = 'Not found (404)', body?: string) {
+    super(message, 404, body);
     this.name = 'NotFoundError';
   }
 }
-
-export class ParseError extends Error {
-  constructor(message = 'Failed to parse response') {
-    super(message);
-    this.name = 'ParseError';
-  }
-}
-

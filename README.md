@@ -46,7 +46,7 @@ const topFreeMusic = await gplay.list({
 - `lang` controls the Play Store UI language (default `'en'`).
 - `country` controls geotargeting and pricing (default `'us'`).
 - Methods that accept `requestOptions` forward `requestOptions.headers` to the underlying HTTP client so you can inject cookies or additional headers.
-- Every function returns a Promise; runtime errors (invalid inputs, store shape changes, HTTP failures) surface as rejected promises. HTTP failures reject with `HttpError` (exported, with `status` and `body`), e.g. `status === 404` for an unknown app.
+- Every function returns a Promise; runtime errors (invalid inputs, store shape changes, HTTP failures) surface as rejected promises. HTTP failures reject with `HttpError` (exported, with `status` and `body`); 404s, e.g. an unknown app, reject with its subclass `NotFoundError`.
 - Methods with `fullDetail` are overloaded: `fullDetail: true` resolves to `AppDetails[]`, otherwise to `AppSummary[]`.
 
 ### Proxy routing

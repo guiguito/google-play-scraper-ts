@@ -1,5 +1,5 @@
 const { expect } = require('chai');
-const { HttpError, NotFoundError, ParseError } = require('../dist/cjs/errors.js');
+const { HttpError, NotFoundError } = require('../dist/cjs/errors.js');
 
 describe('errors', () => {
   it('preserves status and body on HttpError', () => {
@@ -13,9 +13,7 @@ describe('errors', () => {
     const notFound = new NotFoundError();
     expect(notFound.status).to.equal(404);
     expect(notFound.message).to.include('404');
-
-    const parse = new ParseError();
-    expect(parse.name).to.equal('ParseError');
+    expect(notFound).to.be.instanceOf(HttpError);
   });
 });
 

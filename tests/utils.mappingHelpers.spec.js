@@ -71,18 +71,6 @@ describe('utils/mappingHelpers', () => {
     expect(comments).to.deep.equal(['Great app']);
   });
 
-  it('extracts feature titles and descriptions', () => {
-    const feature = [];
-    feature[0] = 'Feature';
-    feature[1] = [];
-    feature[1][0] = [];
-    feature[1][0][0] = [];
-    feature[1][0][0][1] = 'Feature description';
-    const features = [null, null, [feature]];
-    const result = helpers.extractFeatures(features);
-    expect(result).to.deep.equal([{ title: 'Feature', description: 'Feature description' }]);
-  });
-
   it('recursively extracts categories', () => {
     const nested = ['Category A', null, 'CAT_A'];
     const data = [null, [nested]];

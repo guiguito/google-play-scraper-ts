@@ -25,7 +25,9 @@ The format is based on Keep a Changelog, and this project adheres to Semantic Ve
 - `lang`/`country` are URL-encoded; `similar()` no longer double-encodes `appId`; `permissions()` returns `[]` on an unexpected payload.
 - `reviews()` pagination tokens no longer skip reviews; `developer()` honours `fullDetail`; `developerLegalAddress` and data safety fields read Play's current layout; `categories()` returns the known list without a request; `search()` drops a redundant request.
 ### Added
-- Exported types `AppDetails`, `AppSummary`, `Review`, `PermissionItem`, `DataSafety`, `DataSafetyItem`, option types, and the `HttpError`/`NotFoundError`/`ParseError` classes.
+- Exported types `AppDetails`, `AppSummary`, `Review`, `PermissionItem`, `DataSafety`, `DataSafetyItem`, option types, and the `HttpError` and `NotFoundError` classes; 404 responses now reject with `NotFoundError` (a subclass of `HttpError`).
+### Removed
+- Unused internals: the never-populated cookie jar (`createClient`), the `onProxyResolved` hook, `extractFeatures`, `ParseError`.
 
 ## [0.3.1] - 2026-03-01
 ### Fixed

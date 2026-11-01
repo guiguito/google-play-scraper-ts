@@ -3,9 +3,8 @@ import https from 'node:https';
 import tls from 'node:tls';
 import { URL as NodeURL } from 'node:url';
 import type { ClientRequest } from 'node:http';
-import { HttpError } from '../errors';
+import { HttpError, NotFoundError } from '../errors';
 import { getProxyForCountry, type ResolvedProxyConfig } from './proxyConfig';
-import { SimpleCookieJar } from './cookies';
 
 type ProxyUsageListener = (info: { url: string; proxy?: ResolvedProxyConfig; attempt: number }) => void;
 
@@ -76,8 +75,7 @@ function deriveCountry(explicit: string | undefined, url: NodeURL): string | und
 
 export async function request(
   opts: RequestOptions,
-  retry: RetryOptions = { retries: 2, backoffMs: 300 },
-  hooks?: { onProxyResolved?: (info: { url: string; proxy?: ResolvedProxyConfig; attempt: number }) => void }
+  retry: RetryOptions = { retries: 2, backoffMs: 300 }
 ): Promise<string> {
   const { url, method = 'GET', headers = {}, body, timeoutMs = DEFAULT_TIMEOUT_MS, country } = opts;
   const requestHeaders = { ...DEFAULT_HEADERS, ...headers };
@@ -90,7 +88,6 @@ export async function request(
   while (attempt <= retry.retries) {
     try {
       proxyUsageListener?.({ url, proxy, attempt });
-      hooks?.onProxyResolved?.({ url, proxy, attempt });
       const text = await withRequestSlot(() =>
         proxy
           ? requestViaProxy(urlObj, { method, headers: requestHeaders, body, timeoutMs }, proxy)
@@ -115,21 +112,6 @@ export async function request(
 
   if (lastErr instanceof Error) throw lastErr;
   throw new Error(String(lastErr));
-}
-
-export function createClient(
-  retry: RetryOptions = { retries: 2, backoffMs: 300 },
-  hooks?: { onProxyResolved?: (info: { url: string; proxy?: ResolvedProxyConfig; attempt: number }) => void }
-) {
-  const jar = new SimpleCookieJar();
-  return {
-    async request(opts: RequestOptions): Promise<string> {
-      const headers = jar.apply(opts.url, opts.headers ?? {});
-      return request({ ...opts, headers }, retry, hooks);
-    },
-    jar,
-    retry,
-  };
 }
 
 function requestDirect(url: NodeURL, opts: ExecutionOptions): Promise<string> {
@@ -285,7 +267,8 @@ function consumeResponse(
       return;
     }
     const message = res.statusMessage ? ` ${res.statusMessage}` : '';
-    reject(new HttpError(`Request failed: ${status}${message}`, status, body));
+    const msg = `Request failed: ${status}${message}`;
+    reject(status === 404 ? new NotFoundError(msg, body) : new HttpError(msg, status, body));
   });
 }
 

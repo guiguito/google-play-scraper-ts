@@ -120,20 +120,6 @@ export function extractComments(data: JsonValue | undefined) {
   return [] as string[];
 }
 
-export function extractFeatures(featuresArray: JsonValue | undefined) {
-  if (!Array.isArray(featuresArray)) return [] as Array<{ title: string | undefined; description: string | undefined }>;
-  const [, , maybeFeatures] = featuresArray;
-  if (!Array.isArray(maybeFeatures)) return [];
-  return maybeFeatures.map((feature) => {
-    const title = Array.isArray(feature) && typeof feature[0] === 'string' ? feature[0] : undefined;
-    const descriptionValue = getPathValue(feature, [1, 0, 0, 1]);
-    return {
-      title,
-      description: typeof descriptionValue === 'string' ? descriptionValue : undefined,
-    };
-  });
-}
-
 type Category = { name: string; id: string };
 
 export function extractCategories(searchArray: JsonValue | undefined, categories: Category[] = []): Category[] {
@@ -160,6 +146,5 @@ export default {
   normalizeAndroidVersion,
   buildHistogram,
   extractComments,
-  extractFeatures,
   extractCategories,
 };
