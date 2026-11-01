@@ -14,7 +14,8 @@ function fixImports(dir) {
     const fullPath = path.join(dir, entry.name);
     if (entry.isDirectory()) {
       fixImports(fullPath);
-    } else if (entry.isFile() && entry.name.endsWith('.js')) {
+    } else if (entry.isFile() && (entry.name.endsWith('.js') || entry.name.endsWith('.d.ts'))) {
+      // .d.ts too: nodenext consumers reject extensionless relative imports in ESM typings.
       let text = fs.readFileSync(fullPath, 'utf8');
       const replaced = text
         .replace(/from\s+(['"])(\.\.?\/[^'"?]*)(['"])/g, (_, quote, spec, endQuote) => {
