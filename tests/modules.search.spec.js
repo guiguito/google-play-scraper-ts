@@ -230,8 +230,8 @@ describe('modules/search', () => {
     scope.done();
   });
 
-  // Live Play (Nov 2026) serves every result (30) on the /store/search page with no continuation token;
-  // the lGYRle RPC only re-sends the same apps or nothing, so search() must not spend a request on it.
+  // Most queries (Nov 2026) have no continuation token: the first page is all Play serves, and the lGYRle
+  // RPC only re-sends the same apps or nothing, so search() must not spend a request on it.
   it('returns the first page without sending the store RPC', async () => {
     const firstPageDs4 = buildStoreListDs4([buildStoreListItem({ appId: 'com.first' })], null);
     const requestDescriptor = [[[], [[8, [20, 20]]], ['test'], 4, [null, 1], null, null, [], [1]], [1]];
@@ -249,4 +249,52 @@ describe('modules/search', () => {
     expect(postScope.isDone()).to.equal(false);
     getScope.done();
   });
+
+  // Continuation item, in the qnKhOb cluster shape Play serves for pages after the first (Nov 2026).
+  function continuationItem(appId, priceText) {
+    const entry = [];
+    entry[2] = appId.toUpperCase();
+    entry[12] = [appId];
+    entry[9] = [null, null, null, null, ['', '', `/store/apps/details?id=${appId}`]];
+    if (priceText) entry[7] = [[null, null, null, [null, null, [null, [[null, 'USD', priceText]]]]]];
+    return entry;
+  }
+
+  function continuationReply(items) {
+    const payload = [[[items, null, null, null, null, null, null, [null, null]]]];
+    return `)]}'\n${JSON.stringify([['wrb.fr', 'qnKhOb', JSON.stringify(payload)]])}`;
+  }
+
+  // Live: 'minecraft' serves 22 apps plus a token worth ~226 more; 'a' serves 50 plus ~158.
+  it('follows the continuation token past the first page, sized to what is still needed', async () => {
+    const ds4 = buildStoreListDs4(
+      [buildStoreListItem({ appId: 'com.first' }), buildStoreListItem({ appId: 'com.dup' })],
+      'TOK-1_x'
+    );
+    const getScope = nock(BASE_URL).get((uri) => uri.startsWith('/store/search')).reply(200, buildStoreSearchHtml({ ds4 }));
+    let body = '';
+    const postScope = nock(BASE_URL)
+      .post(/batchexecute/, (b) => ((body = typeof b === 'string' ? b : new URLSearchParams(b).toString()), true))
+      .reply(200, continuationReply([continuationItem('com.dup'), continuationItem('com.third')]));
+
+    const res = await search(() => Promise.resolve(), { term: 'minecraft', num: 4, backfillSummaries: false });
+
+    expect(res.map((a) => a.appId)).to.deep.equal(['com.first', 'com.dup', 'com.third']);
+    expect(decodeURIComponent(body)).to.include('TOK-1_x').and.include('[10,[10,2]]');
+    getScope.done();
+    postScope.done();
+  });
+
+  it('applies the price filter to continuation pages itself', async () => {
+    const ds4 = buildStoreListDs4([buildStoreListItem({ appId: 'com.first' })], 'TOK');
+    nock(BASE_URL).get((uri) => uri.startsWith('/store/search')).reply(200, buildStoreSearchHtml({ ds4 }));
+    nock(BASE_URL)
+      .post(/batchexecute/)
+      .reply(200, continuationReply([continuationItem('com.paid', '$1.99'), continuationItem('com.free')]));
+
+    const res = await search(() => Promise.resolve(), { term: 'a', num: 5, price: 'free', backfillSummaries: false });
+
+    expect(res.map((a) => a.appId)).to.deep.equal(['com.first', 'com.free']);
+  });
+
 });

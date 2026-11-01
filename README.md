@@ -267,7 +267,7 @@ Search the Play Store catalogue.
 | `term` | `string` | – | Search query (required). |
 | `lang` | `string` | `'en'` | Metadata language. |
 | `country` | `string` | `'us'` | Storefront country. |
-| `num` | `number` | `20` | At most 30 results (values above 30 throw): Play serves at most 30 results per query, with no further pages. |
+| `num` | `number` | `20` | Up to 250 (values above throw). Most queries stop at Play's first page (~20–30 apps); some (single characters, digits, some app names such as `minecraft`) continue and are followed up to ~250. Never longer than `num`, may be shorter. |
 | `fullDetail` | `boolean` | `false` | When true, hydrate each match via `app()`. |
 | `price` | `'all' \| 'free' \| 'paid'` | `'all'` | Price filter. |
 | `requestOptions` | `{ headers?: Record<string, string> }` | – | Extra HTTP headers for every request the call makes. |
@@ -275,13 +275,13 @@ Search the Play Store catalogue.
 
 Results mirror the modern `/store/search` layout (including single-result pages). When `fullDetail` is enabled each result is re-fetched via `app()`.
 
-**Need more than 30 results?** Play has no second page for a query. To collect more distinct apps, run related queries and de-duplicate by `appId`: the same term with `price: 'free'` and `price: 'paid'` (largely different sets), other `country` values, or terms from `suggest()`. Each query costs one request and has its own ranking.
+**Need more than the first page?** For most queries Play has no second page. To collect more distinct apps, run related queries and de-duplicate by `appId`: the same term with `price: 'free'` and `price: 'paid'` (largely different sets), other `country` values, or terms from `suggest()`. Each query costs one request and has its own ranking.
 
 ```ts
 const term = 'photo editor';
 const byId = new Map();
 for (const t of [term, ...(await gplay.suggest({ term }))]) {
-  for (const app of await gplay.search({ term: t, num: 30 })) byId.set(app.appId, app);
+  for (const app of await gplay.search({ term: t, num: 250 })) byId.set(app.appId, app);
 }
 ```
 

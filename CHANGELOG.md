@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 The format is based on Keep a Changelog, and this project adheres to Semantic Versioning.
 
+## [Unreleased]
+### Fixed
+- `search()` follows Play's continuation token again and accepts `num` up to 250. 0.4.1 capped it at 30, but some queries (single characters, digits, some app names such as `minecraft`) carry a token worth ~200 more apps; queries without one still stop at the first page. Continuation pages are filtered by `price` client-side and de-duplicated.
+
 ## [0.4.1] - 2026-11-01
 ### Breaking
 - `search()` `num` is limited to 30 (was 250) and throws above it: Play serves at most 30 results per query, with no further pages.
