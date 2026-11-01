@@ -17,6 +17,7 @@ async function run() {
   const first: Review | undefined = reviews.data[0];
   const text: string | undefined = first?.text;
 
+  const availableIn: Record<string, boolean> = await api.availability({ appId: 'x', countries: ['us', 'fr'] });
   const short: string[] = await api.permissions({ appId: 'x', short: true });
   const safety = await api.datasafety({ appId: 'x' });
   const optional: boolean | null | undefined = safety.sharedData[0]?.optional;
@@ -28,7 +29,7 @@ async function run() {
   await api.list({ age: 'FIVE_UNDER' });
 
   const isHttp = (e: unknown) => e instanceof HttpError && e.status === 404;
-  return [title, histogram, summaries, details, devApps, similar, text, short, optional, memoDetails, isHttp];
+  return [availableIn, title, histogram, summaries, details, devApps, similar, text, short, optional, memoDetails, isHttp];
 }
 
 void run;

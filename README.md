@@ -379,6 +379,23 @@ Fetch the Google Play “Data safety” disclosure for an app.
 
 The result contains separate `sharedData` and `collectedData` arrays of `DataSafetyItem`s, a list of high-level `securityPractices`, and an optional `privacyPolicyUrl`.
 
+### `availability(options): Promise<Record<string, boolean>>`
+
+Check which storefront countries offer an app. Runs one `app()` lookup per country (sharing the `memoized` cache) and reads the listing's own `available` flag.
+
+| Option | Type | Default | Description |
+| --- | --- | --- | --- |
+| `appId` | `string` | – | Target package identifier. |
+| `countries` | `string[]` | – | Country codes to check (case-insensitive). |
+| `lang` | `string` | `'en'` | Listing language. |
+| `requestOptions` | `{ headers?: Record<string, string> }` | – | Extra HTTP headers for every request the call makes. |
+
+```ts
+await gplay.availability({ appId: 'com.venmo', countries: ['us', 'fr'] }); // { us: true, fr: false }
+```
+
+Play serves the listing page with `200` for most countries an app isn't published in, so the HTTP status alone can't tell; the `available` flag can. A `404` (unknown or removed app) counts as `false`; other failures reject the call.
+
 ### `categories(): Promise<string[]>`
 
 Return every category identifier (e.g. `'APPLICATION'`, `'GAME_TRIVIA'`), the same values as `constants.category`. Play no longer publishes a full category directory, so no request is made.
