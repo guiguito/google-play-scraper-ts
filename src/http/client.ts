@@ -30,10 +30,24 @@ export type RetryOptions = {
   maxBackoffMs?: number;
 };
 
-export type ThrottleOptions = {
-  interval: number;
-  limit: number;
-};
+// fullDetail and summary backfills fan out one app() per result (up to 500 for list()); cap open requests.
+// ponytail: one process-wide limit; make it configurable if someone needs more (e.g. behind rotating proxies).
+const MAX_CONCURRENT_REQUESTS = 5;
+let activeRequests = 0;
+const waitingRequests: Array<() => void> = [];
+
+async function withRequestSlot<T>(fn: () => Promise<T>): Promise<T> {
+  if (activeRequests < MAX_CONCURRENT_REQUESTS) activeRequests += 1;
+  else await new Promise<void>((resolve) => waitingRequests.push(resolve));
+  try {
+    return await fn();
+  } finally {
+    // Hand the slot straight to the next waiter; only free it when nobody is queued.
+    const next = waitingRequests.shift();
+    if (next) next();
+    else activeRequests -= 1;
+  }
+}
 
 const DEFAULT_HEADERS: Record<string, string> = {
   'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
@@ -75,9 +89,11 @@ export async function request(
     try {
       proxyUsageListener?.({ url, proxy, attempt });
       hooks?.onProxyResolved?.({ url, proxy, attempt });
-      const text = await (proxy
-        ? requestViaProxy(urlObj, { method, headers: requestHeaders, body, timeoutMs }, proxy)
-        : requestDirect(urlObj, { method, headers: requestHeaders, body, timeoutMs }));
+      const text = await withRequestSlot(() =>
+        proxy
+          ? requestViaProxy(urlObj, { method, headers: requestHeaders, body, timeoutMs }, proxy)
+          : requestDirect(urlObj, { method, headers: requestHeaders, body, timeoutMs })
+      );
       return text;
     } catch (error) {
       lastErr = error;

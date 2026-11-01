@@ -402,6 +402,7 @@ The default export re-exports structured enums under `constants` for convenience
 ## Retries & throttling
 
 - **Retries** – The internal HTTP client retries 5xx responses with exponential backoff (configurable via helper APIs).
+- **Concurrency** – At most 5 requests are open at once across the process; extra requests (e.g. `fullDetail` fan-outs) wait for a free slot.
 - **Caching** – Use `memoized()` to deduplicate hot requests. For full control, combine with your own throttling or caching layer.
 
 ## TypeScript support
