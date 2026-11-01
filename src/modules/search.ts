@@ -170,7 +170,7 @@ function extractStoreResults(parsed: JsonValue): AppListItem[] {
 }
 
 async function initialStoreRequest(opts: SearchState) {
-  const url = `${BASE_URL}/store/search?q=${opts.term}&hl=${opts.lang}&gl=${opts.country}&price=${opts.price}&c=apps`;
+  const url = `${BASE_URL}/store/search?q=${opts.term}&hl=${encodeURIComponent(opts.lang)}&gl=${encodeURIComponent(opts.country)}&price=${opts.price}&c=apps`;
   const html = await request({ url, method: 'GET', headers: opts.requestOptions?.headers, country: opts.country });
   // ponytail: Play serves every result (30) on this page with no continuation token, so there is nothing to page.
   return extractStoreResults(scriptData.parse(html)).slice(0, opts.num);

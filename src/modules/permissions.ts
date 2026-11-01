@@ -20,11 +20,12 @@ export async function permissions(opts: PermissionsOptions) {
   const lang = opts.lang || 'en';
   const country = opts.country || 'us';
   const body = `f.req=%5B%5B%5B%22xdSrCf%22%2C%22%5B%5Bnull%2C%5B%5C%22${opts.appId}%5C%22%2C7%5D%2C%5B%5D%5D%5D%22%2Cnull%2C%221%22%5D%5D%5D`;
-  const url = `${BASE_URL}/_/PlayStoreUi/data/batchexecute?rpcids=qnKhOb&f.sid=-697906427155521722&bl=boq_playuiserver_20190903.08_p0&hl=${lang}&gl=${country}&authuser&soc-app=121&soc-platform=1&soc-device=1&_reqid=1065213`;
+  const url = `${BASE_URL}/_/PlayStoreUi/data/batchexecute?rpcids=qnKhOb&f.sid=-697906427155521722&bl=boq_playuiserver_20190903.08_p0&hl=${encodeURIComponent(lang)}&gl=${encodeURIComponent(country)}&authuser&soc-app=121&soc-platform=1&soc-device=1&_reqid=1065213`;
   const headers = { 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8' };
   const html = await request({ url, method: 'POST', body, headers, country });
-  const input = JSON.parse(html.substring(5));
-  const data = JSON.parse(input[0][2]) as JsonValue | null;
+  const input = JSON.parse(html.substring(5)) as JsonValue;
+  const payload = Array.isArray(input) && Array.isArray(input[0]) ? input[0][2] : undefined;
+  const data = typeof payload === 'string' ? (JSON.parse(payload) as JsonValue | null) : null;
   if (data === null) return [] as string[];
   return opts.short ? processShortPermissionsData(data) : processPermissionData(data);
 }

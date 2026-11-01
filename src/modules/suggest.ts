@@ -13,7 +13,7 @@ export async function suggest(opts: SuggestOptions) {
   if (!opts || !opts.term) throw new Error('term missing');
   const lang = opts.lang || 'en';
   const country = opts.country || 'us';
-  const url = `${BASE_URL}/_/PlayStoreUi/data/batchexecute?rpcids=IJ4APc&f.sid=-697906427155521722&bl=boq_playuiserver_20190903.08_p0&hl=${lang}&gl=${country}&authuser&soc-app=121&soc-platform=1&soc-device=1&_reqid=1065213`;
+  const url = `${BASE_URL}/_/PlayStoreUi/data/batchexecute?rpcids=IJ4APc&f.sid=-697906427155521722&bl=boq_playuiserver_20190903.08_p0&hl=${encodeURIComponent(lang)}&gl=${encodeURIComponent(country)}&authuser&soc-app=121&soc-platform=1&soc-device=1&_reqid=1065213`;
   // JSON.stringify escapes quotes/backslashes in the term; hand-built strings broke on them.
   const inner = [[null, [opts.term], [10], [2], 4]];
   const body = `f.req=${encodeURIComponent(JSON.stringify([[['IJ4APc', JSON.stringify(inner)]]]))}`;

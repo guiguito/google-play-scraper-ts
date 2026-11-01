@@ -90,7 +90,7 @@ export async function checkFinished<T>(
   }
 
   const body = getBodyForRequests({ numberOfApps: getBatchPageSize(opts.numberOfApps), withToken: nextToken });
-  const url = `${BASE_URL}/_/PlayStoreUi/data/batchexecute?rpcids=qnKhOb&f.sid=-697906427155521722&bl=boq_playuiserver_20190903.08_p0&hl=${opts.lang}&gl=${opts.country}&authuser&soc-app=121&soc-platform=1&soc-device=1&_reqid=1065213`;
+  const url = `${BASE_URL}/_/PlayStoreUi/data/batchexecute?rpcids=qnKhOb&f.sid=-697906427155521722&bl=boq_playuiserver_20190903.08_p0&hl=${encodeURIComponent(opts.lang)}&gl=${encodeURIComponent(opts.country)}&authuser&soc-app=121&soc-platform=1&soc-device=1&_reqid=1065213`;
 
   const headers = Object.assign(
     { 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8' },

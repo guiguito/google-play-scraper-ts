@@ -33,7 +33,7 @@ export interface SimilarOptions {
 
 export async function similar(opts: SimilarOptions) {
   if (!opts || !opts.appId) throw new Error('appId missing');
-  const merged = { appId: encodeURIComponent(opts.appId), lang: opts.lang || 'en', country: opts.country || 'us', fullDetail: opts.fullDetail };
+  const merged = { appId: opts.appId, lang: opts.lang || 'en', country: opts.country || 'us', fullDetail: opts.fullDetail };
   const qs = new URLSearchParams({ id: merged.appId, hl: merged.lang, gl: merged.country }).toString();
   const similarUrl = `${BASE_URL}/store/apps/details?${qs}`;
   const client = createClient();
@@ -71,7 +71,7 @@ async function parseSimilarApps(
   if (!clusterSource) {
     // Fallback: extract any app cards directly from the details page payloads
     const inlineApps = extractAnyApps(similarObject);
-    const refined = refineSimilarList(inlineApps, decodeURIComponent(opts.appId));
+    const refined = refineSimilarList(inlineApps, opts.appId);
     if (refined.length > 0) {
       if (opts.fullDetail) return fetchFullDetail(refined, opts);
       const fetchDetails = async ({ appId, lang, country }: { appId: string; lang: string; country: string }) => {
@@ -85,7 +85,7 @@ async function parseSimilarApps(
   const clusterUrl = getParsedCluster(clusterSource);
   if (!clusterUrl) throw new Error('Similar cluster URL not found');
 
-  const fullClusterUrl = `${BASE_URL}${clusterUrl}&gl=${opts.country}&hl=${opts.lang}`;
+  const fullClusterUrl = `${BASE_URL}${clusterUrl}&gl=${encodeURIComponent(opts.country)}&hl=${encodeURIComponent(opts.lang)}`;
   const html = await client.request({ url: fullClusterUrl, method: 'GET', country: opts.country });
   const parsed = scriptData.parse(html);
 
