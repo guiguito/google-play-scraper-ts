@@ -54,6 +54,7 @@
     "lint:fix": "eslint . --ext .ts --fix",
     "format": "prettier --write .",
     "test": "npm run build && node node_modules/mocha/bin/mocha --require tests/setup.js \"tests/*.spec.js\" \"tests/**/*.spec.js\" \"tests/**/*.spec.ts\"",
+    "test:live": "npm run build && LIVE=1 node node_modules/mocha/bin/mocha --require tests/setup.js tests/live.spec.js",
     "test:coverage": "npm run build:cjs && node node_modules/nyc/bin/nyc.js node node_modules/mocha/bin/mocha --require tests/setup.js \"tests/*.spec.js\" \"tests/**/*.spec.js\" \"tests/**/*.spec.ts\"",
     "verify:types": "node node_modules/typescript/bin/tsc --strict --module nodenext --moduleResolution nodenext --target es2022 --types node --noEmit tests/types/usage.mts",
     "docs": "typedoc",
