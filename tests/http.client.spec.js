@@ -39,6 +39,7 @@ function stubRequests(responses) {
         if (event === 'error') current.errorHandler = handler;
         return this;
       },
+      setTimeout() {},
       write() {},
       end() {
         if (current.error) {

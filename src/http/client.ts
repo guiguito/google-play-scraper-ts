@@ -33,6 +33,8 @@ export type RetryOptions = {
 // fullDetail and summary backfills fan out one app() per result (up to 500 for list()); cap open requests.
 // ponytail: one process-wide limit; make it configurable if someone needs more (e.g. behind rotating proxies).
 const MAX_CONCURRENT_REQUESTS = 5;
+// Without a timeout, 5 stalled sockets would hold every slot and block all later calls in the process.
+const DEFAULT_TIMEOUT_MS = 30_000;
 let activeRequests = 0;
 const waitingRequests: Array<() => void> = [];
 
@@ -77,7 +79,7 @@ export async function request(
   retry: RetryOptions = { retries: 2, backoffMs: 300 },
   hooks?: { onProxyResolved?: (info: { url: string; proxy?: ResolvedProxyConfig; attempt: number }) => void }
 ): Promise<string> {
-  const { url, method = 'GET', headers = {}, body, timeoutMs, country } = opts;
+  const { url, method = 'GET', headers = {}, body, timeoutMs = DEFAULT_TIMEOUT_MS, country } = opts;
   const requestHeaders = { ...DEFAULT_HEADERS, ...headers };
   const urlObj = new NodeURL(url);
   const proxy = getProxyForCountry(deriveCountry(country, urlObj));
