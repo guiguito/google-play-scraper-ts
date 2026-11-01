@@ -4,7 +4,7 @@ All notable changes to this project will be documented in this file.
 
 The format is based on Keep a Changelog, and this project adheres to Semantic Versioning.
 
-## [Unreleased]
+## [0.4.1] - 2026-11-01
 ### Breaking
 - `search()` `num` is limited to 30 (was 250) and throws above it: Play serves at most 30 results per query, with no further pages.
 ### Added
