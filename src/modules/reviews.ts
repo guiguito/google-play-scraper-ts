@@ -130,7 +130,8 @@ async function processReviewsAndGetNextPage(
       ? tokenValue[0]
       : null;
   const reviewsAccumulator = [...savedReviews, ...reviews];
-  return !opts.paginate && token && reviewsAccumulator.length < opts.num
+  // reviews.length guard: an empty page that still carries a token would otherwise loop forever.
+  return !opts.paginate && token && reviews.length > 0 && reviewsAccumulator.length < opts.num
     ? makeReviewsRequest({ ...opts, requestType: REQUEST_TYPE.paginated }, reviewsAccumulator, token)
     : formatReviewsResponse({ reviews: reviewsAccumulator, token, num: opts.num });
 }

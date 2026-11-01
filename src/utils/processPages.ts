@@ -49,7 +49,8 @@ export async function processPages<T = AppListItem>(
     : (processedApps as unknown as T[]);
 
   const tokenValue = scriptData.getPathValue(parsed, mappings.token);
-  const token = typeof tokenValue === 'string' ? tokenValue : undefined;
+  // An empty page that still carries a token would otherwise be requested forever.
+  const token = typeof tokenValue === 'string' && processedApps.length > 0 ? tokenValue : undefined;
   return checkFinished(opts, [...savedApps, ...apps], token, appDetails);
 }
 

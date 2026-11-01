@@ -99,4 +99,12 @@ describe('utils/processPages', () => {
     expect(result[1].appId).to.equal('com.second');
     scope.done();
   });
+
+  it('stops when a page has no apps but still returns a token', async () => {
+    const page = ")]}'\n" + JSON.stringify([[null, null, JSON.stringify([[[[], null, null, null, null, null, null, [null, 'SAME']]]])]]);
+    const scope = nock(BASE_URL).post(/batchexecute/).once().reply(200, page);
+    const apps = await checkFinished({ num: 60, numberOfApps: 60, lang: 'en', country: 'us' }, [], 'SAME');
+    expect(apps).to.deep.equal([]);
+    scope.done();
+  });
 });

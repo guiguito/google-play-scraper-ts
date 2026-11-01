@@ -63,4 +63,12 @@ describe('modules/reviews', () => {
     expect(sizes).to.deep.equal([150, 50]);
     expect(res.data.length).to.equal(200);
   });
+
+  it('stops when a page has no reviews but still returns a token', async () => {
+    const body = ")]}'\n" + JSON.stringify([[null, null, JSON.stringify([[], [null, 'SAME']])]]);
+    const scope = nock(BASE_URL).post(/\/batchexecute/).once().reply(200, body);
+    const res = await reviews({ appId: 'com.test', num: 100 });
+    expect(res.data).to.deep.equal([]);
+    scope.done();
+  });
 });
