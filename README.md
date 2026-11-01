@@ -46,7 +46,27 @@ const topFreeMusic = await gplay.list({
 - `lang` controls the Play Store UI language (default `'en'`).
 - `country` controls geotargeting and pricing (default `'us'`).
 - Every method (except `categories`) accepts `requestOptions: { headers }`; the headers are sent with every request the call makes, including the `app()` requests behind `fullDetail` and the summary backfill.
-- Every function returns a Promise; runtime errors (invalid inputs, store shape changes, HTTP failures) surface as rejected promises. HTTP failures reject with `HttpError` (exported, with `status` and `body`); 404s, e.g. an unknown app, reject with its subclass `NotFoundError`.
+- Every function returns a Promise; runtime errors (invalid inputs, store shape changes, HTTP failures) surface as rejected promises. The error classes are exported, so you can branch with `instanceof`:
+
+  | Error | Extends | When |
+  | --- | --- | --- |
+  | `ValidationError` | `Error` | Bad options (missing `appId`, `num` out of range, unknown constant), before any request. |
+  | `HttpError` | `Error` | Any failed HTTP response; carries `status` and `body`. |
+  | `NotFoundError` | `HttpError` | `404`, e.g. an unknown or removed app. |
+  | `RateLimitError` | `HttpError` | `429` still returned after the retries. |
+  | `BlockedError` | `HttpError` | Google redirected to its captcha page (`google.com/sorry`) and the retries didn't clear it: too many requests from this IP. Slow down or rotate proxies. |
+
+  ```ts
+  import gplay, { BlockedError, NotFoundError } from 'google-play-scraper-ts';
+
+  try {
+    await gplay.app({ appId: 'com.example' });
+  } catch (error) {
+    if (error instanceof NotFoundError) console.log('no such app');
+    else if (error instanceof BlockedError) console.log('captcha: switch proxy');
+    else throw error;
+  }
+  ```
 - Methods with `fullDetail` are overloaded: `fullDetail: true` resolves to `AppDetails[]`, otherwise to `AppSummary[]`. With `fullDetail`, apps whose detail page returns 404 (removed, or not offered in that country) are left out; any other error rejects the call.
 
 ### Proxy routing
@@ -136,7 +156,8 @@ All result types are exported: `import type { AppDetails, AppSummary, Review, Pe
 | `videoImage` | `string \| undefined` | Poster image for the promo video. |
 | `previewVideo` | `string \| undefined` | Short autoplay preview clip URL. |
 | `comments` | `string[]` | Up to five highlighted user quotes. |
-| `recentChanges` | `string \| undefined` | “What’s new” text block. |
+| `recentChanges` | `string \| undefined` | “What’s new” as plain text (tags stripped, `<br>` as line breaks). |
+| `recentChangesHTML` | `string \| undefined` | “What’s new” as Play serves it, markup included; sanitize before rendering. |
 
 **Developer & policies**
 
@@ -185,6 +206,7 @@ Returned by list, search, developer and similar methods when `fullDetail` is `fa
 | `developer` | `string \| undefined` | Developer display name. |
 | `developerId` | `string \| undefined` | Only on `search()`'s top result: Play's list cards don't carry it. Use `fullDetail: true` to get it on every entry. |
 | `summary` | `string \| undefined` | Short synopsis. |
+| `descriptionHTML` | `string \| undefined` | Full description markup, when the result card carries it (first pages of search, list, developer, similar; not search continuation pages). Saves an `app()` call; sanitize before rendering. |
 | `price` | `number \| undefined` | Current price in the store currency (`0` for free apps). |
 | `priceText` | `string \| undefined` | Price label (`'FREE'`, `'$0.99'`, …). |
 | `currency` | `string \| undefined` | Currency code. |
@@ -267,7 +289,7 @@ Search the Play Store catalogue.
 | `term` | `string` | – | Search query (required). |
 | `lang` | `string` | `'en'` | Metadata language. |
 | `country` | `string` | `'us'` | Storefront country. |
-| `num` | `number` | `20` | At most 30 results (values above 30 throw): Play serves at most 30 results per query, with no further pages. |
+| `num` | `number` | `20` | Up to 250 (values above throw). Most queries stop at Play's first page (~20–30 apps); some (single characters, digits, some app names such as `minecraft`) continue and are followed up to ~250. Never longer than `num`, may be shorter. |
 | `fullDetail` | `boolean` | `false` | When true, hydrate each match via `app()`. |
 | `price` | `'all' \| 'free' \| 'paid'` | `'all'` | Price filter. |
 | `requestOptions` | `{ headers?: Record<string, string> }` | – | Extra HTTP headers for every request the call makes. |
@@ -275,13 +297,13 @@ Search the Play Store catalogue.
 
 Results mirror the modern `/store/search` layout (including single-result pages). When `fullDetail` is enabled each result is re-fetched via `app()`.
 
-**Need more than 30 results?** Play has no second page for a query. To collect more distinct apps, run related queries and de-duplicate by `appId`: the same term with `price: 'free'` and `price: 'paid'` (largely different sets), other `country` values, or terms from `suggest()`. Each query costs one request and has its own ranking.
+**Need more than the first page?** For most queries Play has no second page. To collect more distinct apps, run related queries and de-duplicate by `appId`: the same term with `price: 'free'` and `price: 'paid'` (largely different sets), other `country` values, or terms from `suggest()`. Each query costs one request and has its own ranking.
 
 ```ts
 const term = 'photo editor';
 const byId = new Map();
 for (const t of [term, ...(await gplay.suggest({ term }))]) {
-  for (const app of await gplay.search({ term: t, num: 30 })) byId.set(app.appId, app);
+  for (const app of await gplay.search({ term: t, num: 250 })) byId.set(app.appId, app);
 }
 ```
 
@@ -324,12 +346,20 @@ Pull paginated user reviews for a given app.
 | `sort` | `constants.sort` | `constants.sort.NEWEST` | Sorting mode (`NEWEST`, `RATING`, `HELPFULNESS`). |
 | `lang` | `string` | `'en'` | Review language. |
 | `country` | `string` | `'us'` | Locale used for review localisation. |
-| `num` | `number` | `150` | Maximum reviews to gather before stopping. |
+| `num` | `number` | `150` | Maximum reviews to gather before stopping. Fetched up to 4500 per request (`num: 2000` is one request). |
 | `paginate` | `boolean` | `false` | When `false`, auto-follow tokens until `num` reviews or exhaust data. |
 | `nextPaginationToken` | `string \| null` | `null` | Pass a token from a previous response to resume manually. |
+| `score` | `1 \| 2 \| 3 \| 4 \| 5` | – | Only reviews with this star rating, filtered by Play. |
+| `device` | `constants.device` | – | Only reviews written on this form factor (`MOBILE`, `TABLET`, `WATCH`, `CHROMEBOOK`, `TV`), filtered by Play. |
 | `requestOptions` | `{ headers?: Record<string, string> }` | – | Extra HTTP headers for every request the call makes. |
 
 When `paginate` is `true`, the method fetches a single page and returns the next token (if any). The `data` array contains `Review` entries.
+
+Filters are applied by Play, so a filtered call downloads only what it returns. When paging manually, pass the same `score` and `device` with each `nextPaginationToken`: the token is a position, not a query.
+
+```ts
+const { data } = await gplay.reviews({ appId: 'com.whatsapp', score: 1, device: gplay.device.TABLET, num: 50 });
+```
 
 ### `similar(options): Promise<AppSummary[] \| AppDetails[]>`
 
@@ -371,6 +401,23 @@ Fetch the Google Play “Data safety” disclosure for an app.
 
 The result contains separate `sharedData` and `collectedData` arrays of `DataSafetyItem`s, a list of high-level `securityPractices`, and an optional `privacyPolicyUrl`.
 
+### `availability(options): Promise<Record<string, boolean>>`
+
+Check which storefront countries offer an app. Runs one `app()` lookup per country (sharing the `memoized` cache) and reads the listing's own `available` flag.
+
+| Option | Type | Default | Description |
+| --- | --- | --- | --- |
+| `appId` | `string` | – | Target package identifier. |
+| `countries` | `string[]` | – | Country codes to check (case-insensitive). |
+| `lang` | `string` | `'en'` | Listing language. |
+| `requestOptions` | `{ headers?: Record<string, string> }` | – | Extra HTTP headers for every request the call makes. |
+
+```ts
+await gplay.availability({ appId: 'com.venmo', countries: ['us', 'fr'] }); // { us: true, fr: false }
+```
+
+Play serves the listing page with `200` for most countries an app isn't published in, so the HTTP status alone can't tell; the `available` flag can. A `404` (unknown or removed app) counts as `false`; other failures reject the call.
+
 ### `categories(): Promise<string[]>`
 
 Return every category identifier (e.g. `'APPLICATION'`, `'GAME_TRIVIA'`), the same values as `constants.category`. Play no longer publishes a full category directory, so no request is made.
@@ -393,6 +440,7 @@ The enums are available as the named export `constants` (and spread at the top l
 - `constants.collection` – `TOP_FREE`, `TOP_PAID`, `GROSSING`.
 - `constants.category` – All Play categories (apps, games, family variants, etc.).
 - `constants.sort` – Review sort orders (`NEWEST`, `RATING`, `HELPFULNESS`).
+- `constants.device` – Review device filter (`MOBILE`, `TABLET`, `WATCH`, `CHROMEBOOK`, `TV`).
 - `constants.age` – Age-range filters used by the family charts.
 - `constants.permission` – Permission buckets (`COMMON`, `OTHER`).
 
@@ -423,7 +471,7 @@ The enums are available as the named export `constants` (and spread at the top l
 
 ## Retries & throttling
 
-- **Retries** – The internal HTTP client retries network errors, 5xx and 429 (rate limited) responses twice with exponential backoff (300 ms, 600 ms), waiting longer when Play sends a `Retry-After` header (capped at 60 s).
+- **Retries** – The internal HTTP client retries network errors, 5xx, 429 (rate limited) and captcha redirects twice with exponential backoff (300 ms, 600 ms), waiting longer when Play sends a `Retry-After` header (capped at 60 s).
 - **Timeouts** – Requests time out after 30 s of socket inactivity, then count as a retriable network error.
 - **Concurrency** – At most 5 requests are open at once across the process; extra requests (e.g. `fullDetail` fan-outs) wait for a free slot.
 - **Summary backfill** – When a list/search/developer/similar result lacks a summary, one `app()` call is made per such entry to fill it in; failures are ignored. Pass `backfillSummaries: false` to skip these requests.

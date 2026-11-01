@@ -15,6 +15,8 @@ export interface AppListItem {
   price?: number;
   free?: boolean;
   summary?: string;
+  /** Full description markup from the result card, when Play includes it (search, list, developer, similar). */
+  descriptionHTML?: string;
   scoreText?: string;
   score?: number;
 }
@@ -48,6 +50,7 @@ export function cardMappings(prefix: number[] = []): Omit<AppListMappings, 'deve
     price: { path: at(8, 1, 0, 0), fun: microToPrice },
     free: { path: at(8, 1, 0, 0), fun: (value) => value === 0 },
     summary: { path: at(13), fun: helper.summaryText },
+    descriptionHTML: { path: at(13, 1), fun: asString },
     scoreText: { path: at(4, 0), fun: asString },
     score: { path: at(4, 1), fun: asNumber },
   };
@@ -74,7 +77,8 @@ export function idFromUrl(link: JsonValue | undefined): string | undefined {
 
 type AppListMappings = { [K in keyof AppListItem]-?: MappingSpec<AppListItem[K]> };
 
-const APP_MAPPINGS: AppListMappings = {
+// Continuation-page cards carry only a short summary, no description.
+const APP_MAPPINGS: Omit<AppListMappings, 'descriptionHTML'> = {
   title: { path: [2], fun: asString },
   appId: { path: [12, 0], fun: asString },
   url: {

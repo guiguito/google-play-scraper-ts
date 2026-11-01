@@ -4,6 +4,19 @@ All notable changes to this project will be documented in this file.
 
 The format is based on Keep a Changelog, and this project adheres to Semantic Versioning.
 
+## [0.5.0] - 2026-11-01
+### Breaking
+- `app()` `recentChanges` is plain text like `description` (tags stripped, `<br>` → line break); the markup moved to `recentChangesHTML`.
+### Added
+- `reviews()` `score` (1–5) and `device` (`constants.device.MOBILE`, `TABLET`, `WATCH`, `CHROMEBOOK`, `TV`) filters, applied by Play on every page.
+- `availability({ appId, countries })` → `{ us: true, fr: false, … }`, from each country listing's `available` flag (Play answers 200 for most countries an app isn't in, so the status code can't tell).
+- `app()` returns `recentChangesHTML` (markup as Play serves it).
+- List results (`search`, `list`, `developer`, `similar`) carry `descriptionHTML`, the full description Play already puts in the card, so it no longer takes an `app()` call.
+- Specific errors, all exported: `RateLimitError` (429 after retries) and `BlockedError` (redirect to Google's captcha page, now retried like a 429) extend `HttpError`; `ValidationError` replaces the plain `Error` thrown for bad options.
+- `reviews()` asks for up to 4500 reviews per request (was 150): `num: 2000` is one request instead of 14.
+### Fixed
+- `search()` follows Play's continuation token again and accepts `num` up to 250. 0.4.1 capped it at 30, but some queries (single characters, digits, some app names such as `minecraft`) carry a token worth ~200 more apps; queries without one still stop at the first page. Continuation pages are filtered by `price` client-side and de-duplicated.
+
 ## [0.4.1] - 2026-11-01
 ### Breaking
 - `search()` `num` is limited to 30 (was 250) and throws above it: Play serves at most 30 results per query, with no further pages.

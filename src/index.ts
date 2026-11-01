@@ -3,6 +3,7 @@ import { configureProxy as applyProxyConfig, type ProxySettings } from './http/p
 import app from './modules/app';
 import list from './modules/list';
 import search, { type SearchOptions } from './modules/search';
+import availability, { type AvailabilityOptions } from './modules/availability';
 import type { ListOptions } from './modules/list';
 import type { DeveloperOptions } from './modules/developer';
 import type { SimilarOptions } from './modules/similar';
@@ -17,7 +18,7 @@ import categories from './modules/categories';
 
 export type { Constants } from './constants';
 export { constants };
-export { HttpError, NotFoundError } from './errors';
+export { HttpError, NotFoundError, RateLimitError, BlockedError, ValidationError } from './errors';
 export type {
   AppDetails,
   AppSummary,
@@ -35,6 +36,7 @@ export type { SuggestOptions } from './modules/suggest';
 export type { ReviewsOptions } from './modules/reviews';
 export type { PermissionsOptions } from './modules/permissions';
 export type { DataSafetyOptions } from './modules/datasafety';
+export type { AvailabilityOptions };
 
 export type MemoizeOptions = {
   maxAge?: number;
@@ -53,6 +55,7 @@ const baseApi = {
   permissions,
   datasafety,
   categories,
+  availability: (opts: AvailabilityOptions) => availability(app, opts),
 };
 
 export type PlayStoreApi = typeof baseApi & { memoized: typeof memoized };
@@ -120,6 +123,8 @@ export function memoized(_opts?: MemoizeOptions): PlayStoreApi {
     permissions: m('permissions', permissions),
     datasafety: m('datasafety', datasafety),
     categories: m('categories', categories),
+    // Not memoized itself: it goes through mApp, so each country's lookup is cached as an app() call.
+    availability: (opts: AvailabilityOptions) => availability(mApp, opts),
     memoized,
   };
 }

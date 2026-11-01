@@ -1,4 +1,5 @@
 import { BASE_URL, constants } from '../constants';
+import { ValidationError } from '../errors';
 import { request } from '../http/client';
 import * as scriptData from '../utils/scriptData';
 import type { JsonValue, PermissionItem } from '../types';
@@ -18,7 +19,7 @@ export function permissions(opts: PermissionsOptions & { short: true }): Promise
 export function permissions(opts: PermissionsOptions & { short?: false }): Promise<PermissionItem[]>;
 export function permissions(opts: PermissionsOptions): Promise<string[] | PermissionItem[]>;
 export async function permissions(opts: PermissionsOptions): Promise<string[] | PermissionItem[]> {
-  if (!opts || !opts.appId) throw new Error('appId missing');
+  if (!opts || !opts.appId) throw new ValidationError('appId missing');
   const lang = opts.lang || 'en';
   const country = opts.country || 'us';
   const inner = [[null, [opts.appId, 7], []]];

@@ -66,6 +66,23 @@ const nonEmpty = (v) => typeof v === 'string' && v.trim().length > 0;
     expect(perms).to.have.length.greaterThan(0);
   });
 
+  it('availability', async () => {
+    // Venmo is US-only: Play still serves its page with gl=fr, but flags it unavailable.
+    expect(await gplay.availability({ appId: 'com.venmo', countries: ['us', 'fr'] })).to.deep.equal({ us: true, fr: false });
+  });
+
+  it('reviews filters', async () => {
+    const { data } = await gplay.reviews({ appId: APP_ID, num: 20, score: 1, device: gplay.device.MOBILE });
+    expect(data).to.have.length.greaterThan(0);
+    data.forEach((r) => expect(r.score).to.equal(1));
+  });
+
+  it('search follows the continuation token', async () => {
+    const apps = await gplay.search({ term: 'minecraft', num: 60, backfillSummaries: false });
+    expect(apps.length).to.be.greaterThan(30);
+    expect(new Set(apps.map((a) => a.appId)).size).to.equal(apps.length);
+  });
+
   it('datasafety', async () => {
     const safety = await gplay.datasafety({ appId: APP_ID });
     expect(safety.collectedData.length + safety.sharedData.length).to.be.greaterThan(0);

@@ -1,5 +1,5 @@
 const { expect } = require('chai');
-const { HttpError, NotFoundError } = require('../dist/cjs/errors.js');
+const { HttpError, NotFoundError, RateLimitError } = require('../dist/cjs/errors.js');
 
 describe('errors', () => {
   it('preserves status and body on HttpError', () => {
@@ -14,6 +14,9 @@ describe('errors', () => {
     expect(notFound.status).to.equal(404);
     expect(notFound.message).to.include('404');
     expect(notFound).to.be.instanceOf(HttpError);
+    const limited = new RateLimitError();
+    expect([limited.status, limited.name]).to.deep.equal([429, 'RateLimitError']);
+    expect(limited).to.be.instanceOf(HttpError);
   });
 });
 

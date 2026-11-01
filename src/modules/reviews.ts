@@ -1,4 +1,5 @@
 import { BASE_URL, constants } from '../constants';
+import { ValidationError } from '../errors';
 import { request } from '../http/client';
 import * as scriptData from '../utils/scriptData';
 import type { JsonValue, Review } from '../types';
@@ -8,16 +9,23 @@ const REQUEST_TYPE = { initial: 'initial', paginated: 'paginated' } as const;
 type RequestTypeKey = keyof typeof REQUEST_TYPE;
 
 
-function getBodyForRequests({ appId, sort, numberOfReviewsPerRequest = 150, withToken, requestType = REQUEST_TYPE.initial }: {
+// Play serves an empty payload for larger pages (checked Nov 2026).
+const MAX_REVIEWS_PER_REQUEST = 4500;
+
+function getBodyForRequests({ appId, sort, numberOfReviewsPerRequest = 150, withToken, requestType = REQUEST_TYPE.initial, score, device }: {
   appId: string;
   sort: number;
   numberOfReviewsPerRequest?: number;
   withToken?: string;
   requestType?: RequestTypeKey;
+  score?: number;
+  device?: number;
 }) {
   // JSON.stringify + encodeURIComponent: appId and tokens must not be able to break the payload.
   const token = requestType === REQUEST_TYPE.paginated ? withToken ?? null : null;
-  const inner = [null, null, [2, sort, [numberOfReviewsPerRequest, null, token], null, []], [appId, 7]];
+  // Server-side filters; Play keeps them on every page only if every request repeats them.
+  const filters = score || device ? [null, score ?? null, null, null, null, null, null, null, device ?? null] : [];
+  const inner = [null, null, [2, sort, [numberOfReviewsPerRequest, null, token], null, filters], [appId, 7]];
   return `f.req=${encodeURIComponent(JSON.stringify([[['UsvDTd', JSON.stringify(inner), null, 'generic']]]))}`;
 }
 
@@ -101,9 +109,22 @@ function formatReviewsResponse({ reviews, num, token = null }: { reviews: Review
   return { data: reviewsToResponse, nextPaginationToken: token };
 }
 
+type ReviewRequestOptions = {
+  appId: string;
+  sort: ReviewSort;
+  lang: string;
+  country: string;
+  num: number;
+  requestType: RequestTypeKey;
+  paginate?: boolean;
+  score?: number;
+  device?: number;
+  requestOptions?: ReviewsOptions['requestOptions'];
+};
+
 async function processReviewsAndGetNextPage(
   html: JsonValue,
-  opts: { appId: string; num: number; paginate?: boolean; lang: string; country: string; sort: ReviewSort; requestType: RequestTypeKey; requestOptions?: ReviewsOptions['requestOptions'] },
+  opts: ReviewRequestOptions,
   savedReviews: Review[]
 ): Promise<{ data: Review[]; nextPaginationToken: string | null }> {
   const parsed = typeof html === 'string' ? scriptData.parse(html) : html;
@@ -122,13 +143,21 @@ async function processReviewsAndGetNextPage(
 }
 
 function makeReviewsRequest(
-  opts: { appId: string; sort: ReviewSort; lang: string; country: string; num: number; requestType: RequestTypeKey; paginate?: boolean; requestOptions?: ReviewsOptions['requestOptions'] },
+  opts: ReviewRequestOptions,
   savedReviews: Review[],
   nextToken: string
 ): Promise<{ data: Review[]; nextPaginationToken: string | null }> {
   // Never ask for more than still needed: the returned token points past the whole page, so any surplus sliced off would be lost.
-  const numberOfReviewsPerRequest = Math.min(opts.num - savedReviews.length, 150);
-  const body = getBodyForRequests({ appId: opts.appId, sort: opts.sort, numberOfReviewsPerRequest, withToken: nextToken, requestType: opts.requestType });
+  const numberOfReviewsPerRequest = Math.min(opts.num - savedReviews.length, MAX_REVIEWS_PER_REQUEST);
+  const body = getBodyForRequests({
+    appId: opts.appId,
+    sort: opts.sort,
+    numberOfReviewsPerRequest,
+    withToken: nextToken,
+    requestType: opts.requestType,
+    score: opts.score,
+    device: opts.device,
+  });
   const url = `${BASE_URL}/_/PlayStoreUi/data/batchexecute?rpcids=qnKhOb&f.sid=-697906427155521722&bl=boq_playuiserver_20190903.08_p0&hl=${encodeURIComponent(opts.lang)}&gl=${encodeURIComponent(opts.country)}&authuser&soc-app=121&soc-platform=1&soc-device=1&_reqid=1065213`;
   const headers = { 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8', ...opts.requestOptions?.headers };
   return request({ url, method: 'POST', body, headers, country: opts.country }).then((html) => {
@@ -147,16 +176,25 @@ export interface ReviewsOptions {
   num?: number;
   paginate?: boolean;
   nextPaginationToken?: string | null;
+  /** Only reviews with this star rating (filtered by Play). */
+  score?: 1 | 2 | 3 | 4 | 5;
+  /** Only reviews written on this form factor (filtered by Play): `constants.device.TABLET`, `.WATCH`, … */
+  device?: ReviewDevice;
   /** Extra HTTP headers for every request this call makes (including app() fan-outs). */
   requestOptions?: { headers?: Record<string, string> };
 }
 
 type ReviewSort = (typeof constants.sort)[keyof typeof constants.sort];
+type ReviewDevice = (typeof constants.device)[keyof typeof constants.device];
 
 export async function reviews(opts: ReviewsOptions) {
-  if (!opts || !opts.appId) throw new Error('appId missing');
+  if (!opts || !opts.appId) throw new ValidationError('appId missing');
   const validSorts = Object.values(constants.sort) as ReviewSort[];
-  if (opts.sort && !validSorts.includes(opts.sort as ReviewSort)) throw new Error('Invalid sort ' + opts.sort);
+  if (opts.sort && !validSorts.includes(opts.sort as ReviewSort)) throw new ValidationError('Invalid sort ' + opts.sort);
+  if (opts.score !== undefined && ![1, 2, 3, 4, 5].includes(opts.score)) throw new ValidationError('Invalid score ' + opts.score);
+  if (opts.device !== undefined && !(Object.values(constants.device) as number[]).includes(opts.device)) {
+    throw new ValidationError('Invalid device ' + opts.device);
+  }
   // `??` rather than Object.assign: an explicit `undefined` must not override a default.
   const fullOptions = {
     ...opts,
@@ -177,6 +215,8 @@ export async function reviews(opts: ReviewsOptions) {
       num: fullOptions.num,
       requestType,
       paginate: fullOptions.paginate,
+      score: fullOptions.score,
+      device: fullOptions.device,
       requestOptions: fullOptions.requestOptions,
     },
     [],

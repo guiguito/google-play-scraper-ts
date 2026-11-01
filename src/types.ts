@@ -45,7 +45,10 @@ export interface AppDetails {
   videoImage?: string;
   previewVideo?: string;
   comments: string[];
+  /** Plain text (tags stripped, `<br>` as line breaks). */
   recentChanges?: string;
+  /** `recentChanges` as Play serves it, markup included; sanitize before rendering. */
+  recentChangesHTML?: string;
   developer?: string;
   developerId?: string;
   developerInternalID?: string;

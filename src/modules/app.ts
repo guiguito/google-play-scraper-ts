@@ -1,4 +1,5 @@
 import { BASE_URL } from '../constants';
+import { ValidationError } from '../errors';
 import { extractor, parse, type GenericMappings } from '../utils/scriptData';
 import helper from '../utils/mappingHelpers';
 import { request } from '../http/client';
@@ -14,7 +15,7 @@ export interface AppOptions {
 
 export async function app(opts: AppOptions): Promise<AppDetails> {
   if (!opts || !opts.appId) {
-    throw new Error('appId missing');
+    throw new ValidationError('appId missing');
   }
   const lang = opts.lang ?? 'en';
   const country = opts.country ?? 'us';
@@ -164,7 +165,12 @@ const MAPPINGS: GenericMappings = {
   releasedTimestamp: { path: ['ds:5', 1, 2, 10, 1, 0], fun: (ts) => (typeof ts === 'number' ? ts * 1000 : undefined) },
   updated: { path: ['ds:5', 1, 2, 145, 0, 1, 0], fun: (ts) => (typeof ts === 'number' ? ts * 1000 : undefined) },
   version: { path: ['ds:5', 1, 2, 140, 0, 0, 0], fun: (val) => (typeof val === 'string' && val ? val : 'VARY') },
-  recentChanges: ['ds:5', 1, 2, 144, 1, 1],
+  // Plain text like `description`; the markup Play serves (`<br>`, entities) stays in recentChangesHTML.
+  recentChanges: {
+    path: ['ds:5', 1, 2, 144, 1, 1],
+    fun: (html) => (typeof html === 'string' ? helper.descriptionText(html) : undefined),
+  },
+  recentChangesHTML: ['ds:5', 1, 2, 144, 1, 1],
   comments: { path: [], fun: helper.extractComments },
   preregister: { path: ['ds:5', 1, 2, 18, 0], fun: (val) => val === 1 },
   earlyAccessEnabled: { path: ['ds:5', 1, 2, 18, 2], fun: (val) => typeof val === 'string' },

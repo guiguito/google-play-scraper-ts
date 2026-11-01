@@ -7,6 +7,8 @@ const list = require('../dist/cjs/modules/list.js').default;
 const developer = require('../dist/cjs/modules/developer.js').default;
 const permissions = require('../dist/cjs/modules/permissions.js').default;
 const reviews = require('../dist/cjs/modules/reviews.js').default;
+const { ValidationError } = require('../dist/cjs/errors.js');
+const gplay = require('../dist/cjs/index.js');
 
 describe('validation and edge cases', () => {
   it('app: throws when appId missing', async () => {
@@ -17,13 +19,13 @@ describe('validation and edge cases', () => {
     expect(threw).to.equal(true);
   });
 
-  it('search: throws when term missing and when num > 30', async () => {
+  it('search: throws when term missing and when num > 250', async () => {
     let threw1 = false; let threw2 = false;
     try { // @ts-ignore
       await search(() => Promise.resolve(), {});
     } catch (e) { threw1 = true; }
     try {
-      await search(() => Promise.resolve(), { term: 'x', num: 31 });
+      await search(() => Promise.resolve(), { term: 'x', num: 251 });
     } catch (e) { threw2 = true; }
     expect(threw1).to.equal(true);
     expect(threw2).to.equal(true);
@@ -48,9 +50,27 @@ describe('validation and edge cases', () => {
     expect(threw).to.equal(true);
   });
 
-  it('reviews: throws on invalid sort', async () => {
-    let threw=false; try { await reviews({ appId: 'com.test', sort: 999 }); } catch { threw=true; }
-    expect(threw).to.equal(true);
+  it('reviews: throws on invalid sort, score or device', async () => {
+    for (const opts of [{ sort: 999 }, { score: 6 }, { score: 0 }, { device: 1 }]) {
+      let threw=false; try { await reviews({ appId: 'com.test', ...opts }); } catch { threw=true; }
+      expect(threw, JSON.stringify(opts)).to.equal(true);
+    }
+  });
+
+  it('throws ValidationError, exported from the package root, for bad options', async () => {
+    expect(gplay.ValidationError).to.equal(ValidationError);
+    const bad = [
+      () => app({}),
+      () => search(() => Promise.resolve(), { term: 'x', num: 251 }),
+      () => reviews({ appId: 'com.test', score: 6 }),
+      () => list({ category: 'BAD' }),
+      () => gplay.default.availability({ appId: 'x', countries: [] }),
+    ];
+    for (const call of bad) {
+      let error;
+      try { await call(); } catch (e) { error = e; }
+      expect(error, call.toString()).to.be.instanceOf(ValidationError);
+    }
   });
 
   it('explicit undefined options fall back to defaults', async () => {

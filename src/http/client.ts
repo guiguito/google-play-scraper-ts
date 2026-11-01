@@ -3,7 +3,7 @@ import https from 'node:https';
 import tls from 'node:tls';
 import { URL as NodeURL } from 'node:url';
 import type { ClientRequest } from 'node:http';
-import { HttpError, NotFoundError } from '../errors';
+import { BlockedError, HttpError, NotFoundError, RateLimitError } from '../errors';
 import { getProxyForCountry, type ResolvedProxyConfig } from './proxyConfig';
 
 type ProxyUsageListener = (info: { url: string; proxy?: ResolvedProxyConfig; attempt: number }) => void;
@@ -108,7 +108,9 @@ export async function request(
     } catch (error) {
       lastErr = error;
       const status = error instanceof HttpError ? error.status : undefined;
-      const shouldRetry = attempt < retry.retries && (status === undefined || isRetriableStatus(status));
+      // A captcha redirect often clears on the next attempt, like a 429.
+      const retriable = status === undefined || isRetriableStatus(status) || error instanceof BlockedError;
+      const shouldRetry = attempt < retry.retries && retriable;
       if (!shouldRetry) break;
 
       const backoff = Math.max(
@@ -279,7 +281,15 @@ function consumeResponse(
     }
     const message = res.statusMessage ? ` ${res.statusMessage}` : '';
     const msg = `Request failed: ${status}${message}`;
-    const error = status === 404 ? new NotFoundError(msg, body) : new HttpError(msg, status, body);
+    const location = res.headers.location ?? '';
+    const error =
+      status === 404
+        ? new NotFoundError(msg, body)
+        : status === 429
+          ? new RateLimitError(msg, body)
+          : status >= 300 && status < 400 && /^https?:\/\/(www\.)?google\.[a-z.]+\/sorry\//.test(location)
+            ? new BlockedError(`Blocked by Google's captcha (${status} to ${location})`, status, body)
+            : new HttpError(msg, status, body);
     error.retryAfterMs = retryAfterMs(res.headers['retry-after']);
     reject(error);
   });

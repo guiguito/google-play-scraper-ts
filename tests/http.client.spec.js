@@ -4,7 +4,7 @@ const http = require('node:http');
 const https = require('node:https');
 const tls = require('node:tls');
 const { request } = require('../dist/cjs/http/client.js');
-const { HttpError, NotFoundError } = require('../dist/cjs/errors.js');
+const { HttpError, NotFoundError, RateLimitError, BlockedError } = require('../dist/cjs/errors.js');
 const { configureProxy, resetProxyConfiguration } = require('../dist/cjs/http/proxyConfig.js');
 
 afterEach(() => {
@@ -213,6 +213,58 @@ describe('proxy routing', () => {
       http.request = originals.http;
       https.request = originals.https;
       tls.connect = originals.tls;
+    }
+  });
+
+  it('throws RateLimitError when 429 persists after the retries', async () => {
+    const restore = stubRequests([{ statusCode: 429, body: 'slow down' }]);
+    try {
+      await request({ url: 'http://rate.test/' }, { retries: 1, backoffMs: 0 });
+      expect.fail('should have thrown');
+    } catch (err) {
+      expect(err).to.be.instanceOf(RateLimitError);
+      expect(err).to.be.instanceOf(HttpError);
+      expect(err.status).to.equal(429);
+    } finally {
+      restore();
+    }
+  });
+
+  // Google answers request bursts with a 302 to its captcha page; the next attempt often goes through.
+  const sorry = { statusCode: 302, headers: { location: 'https://www.google.com/sorry/index?continue=x' }, body: '' };
+
+  it('retries a captcha redirect and returns the page once it clears', async () => {
+    const restore = stubRequests([sorry, { statusCode: 200, body: 'ok' }]);
+    try {
+      expect(await request({ url: 'http://blocked.test/' }, { retries: 1, backoffMs: 0 })).to.equal('ok');
+    } finally {
+      restore();
+    }
+  });
+
+  it('throws BlockedError when the captcha redirect persists; other redirects stay plain HttpErrors', async () => {
+    let restore = stubRequests([sorry]);
+    try {
+      await request({ url: 'http://blocked.test/' }, { retries: 1, backoffMs: 0 });
+      expect.fail('should have thrown');
+    } catch (err) {
+      expect(err).to.be.instanceOf(BlockedError);
+      expect(err.status).to.equal(302);
+      expect(err.message).to.include('google.com/sorry');
+    } finally {
+      restore();
+    }
+    let calls = 0;
+    restore = stubRequests([{ statusCode: 302, headers: { location: 'https://play.google.com/store/apps' }, inspect: () => calls++ }]);
+    try {
+      await request({ url: 'http://moved.test/' }, { retries: 2, backoffMs: 0 });
+      expect.fail('should have thrown');
+    } catch (err) {
+      expect(err).to.be.instanceOf(HttpError);
+      expect(err).to.not.be.instanceOf(BlockedError);
+      expect(calls).to.equal(1);
+    } finally {
+      restore();
     }
   });
 });

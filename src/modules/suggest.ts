@@ -1,4 +1,5 @@
 import { BASE_URL } from '../constants';
+import { ValidationError } from '../errors';
 import { request } from '../http/client';
 import type { JsonValue } from '../types';
 
@@ -10,7 +11,7 @@ export interface SuggestOptions {
 }
 
 export async function suggest(opts: SuggestOptions) {
-  if (!opts || !opts.term) throw new Error('term missing');
+  if (!opts || !opts.term) throw new ValidationError('term missing');
   const lang = opts.lang || 'en';
   const country = opts.country || 'us';
   const url = `${BASE_URL}/_/PlayStoreUi/data/batchexecute?rpcids=IJ4APc&f.sid=-697906427155521722&bl=boq_playuiserver_20190903.08_p0&hl=${encodeURIComponent(lang)}&gl=${encodeURIComponent(country)}&authuser&soc-app=121&soc-platform=1&soc-device=1&_reqid=1065213`;

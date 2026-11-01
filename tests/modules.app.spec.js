@@ -46,6 +46,7 @@ describe('modules/app', () => {
     setPath(details, [1, 2, 62], 'playpass');
     setPath(details, [1, 2, 68, 1, 4, 2], '/store/apps/developer?id=Test+Dev');
     setPath(details, [1, 2, 10], ['27 mai 2014', [1401196337, 255000000]]);
+    setPath(details, [1, 2, 144, 1, 1], '• Faster sync<br>• Fixes &amp; tweaks');
 
     const html = `<!doctype html><html><body>
       <script>AF_initDataCallback({key: 'ds:5', data: ${JSON.stringify(details)}, sideChannel: {}});</script>
@@ -64,6 +65,8 @@ describe('modules/app', () => {
     expect(result.developerInternalID).to.equal('Test Dev');
     expect(result.released).to.equal('27 mai 2014');
     expect(result.releasedTimestamp).to.equal(1401196337000);
+    expect(result.recentChanges).to.equal('• Faster sync\n• Fixes & tweaks');
+    expect(result.recentChangesHTML).to.equal('• Faster sync<br>• Fixes &amp; tweaks');
     expect(result.icon).to.equal('https://cdn.example/icon.png');
     expect(result.developerLegalAddress).to.equal('123 Main St, City');
     expect(result.screenshots).to.deep.equal(['https://cdn.example/screen.png']);
