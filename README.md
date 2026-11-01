@@ -46,7 +46,27 @@ const topFreeMusic = await gplay.list({
 - `lang` controls the Play Store UI language (default `'en'`).
 - `country` controls geotargeting and pricing (default `'us'`).
 - Every method (except `categories`) accepts `requestOptions: { headers }`; the headers are sent with every request the call makes, including the `app()` requests behind `fullDetail` and the summary backfill.
-- Every function returns a Promise; runtime errors (invalid inputs, store shape changes, HTTP failures) surface as rejected promises. HTTP failures reject with `HttpError` (exported, with `status` and `body`); 404s, e.g. an unknown app, reject with its subclass `NotFoundError`.
+- Every function returns a Promise; runtime errors (invalid inputs, store shape changes, HTTP failures) surface as rejected promises. The error classes are exported, so you can branch with `instanceof`:
+
+  | Error | Extends | When |
+  | --- | --- | --- |
+  | `ValidationError` | `Error` | Bad options (missing `appId`, `num` out of range, unknown constant), before any request. |
+  | `HttpError` | `Error` | Any failed HTTP response; carries `status` and `body`. |
+  | `NotFoundError` | `HttpError` | `404`, e.g. an unknown or removed app. |
+  | `RateLimitError` | `HttpError` | `429` still returned after the retries. |
+  | `BlockedError` | `HttpError` | Google redirected to its captcha page (`google.com/sorry`) and the retries didn't clear it: too many requests from this IP. Slow down or rotate proxies. |
+
+  ```ts
+  import gplay, { BlockedError, NotFoundError } from 'google-play-scraper-ts';
+
+  try {
+    await gplay.app({ appId: 'com.example' });
+  } catch (error) {
+    if (error instanceof NotFoundError) console.log('no such app');
+    else if (error instanceof BlockedError) console.log('captcha: switch proxy');
+    else throw error;
+  }
+  ```
 - Methods with `fullDetail` are overloaded: `fullDetail: true` resolves to `AppDetails[]`, otherwise to `AppSummary[]`. With `fullDetail`, apps whose detail page returns 404 (removed, or not offered in that country) are left out; any other error rejects the call.
 
 ### Proxy routing
@@ -451,7 +471,7 @@ The enums are available as the named export `constants` (and spread at the top l
 
 ## Retries & throttling
 
-- **Retries** – The internal HTTP client retries network errors, 5xx and 429 (rate limited) responses twice with exponential backoff (300 ms, 600 ms), waiting longer when Play sends a `Retry-After` header (capped at 60 s).
+- **Retries** – The internal HTTP client retries network errors, 5xx, 429 (rate limited) and captcha redirects twice with exponential backoff (300 ms, 600 ms), waiting longer when Play sends a `Retry-After` header (capped at 60 s).
 - **Timeouts** – Requests time out after 30 s of socket inactivity, then count as a retriable network error.
 - **Concurrency** – At most 5 requests are open at once across the process; extra requests (e.g. `fullDetail` fan-outs) wait for a free slot.
 - **Summary backfill** – When a list/search/developer/similar result lacks a summary, one `app()` call is made per such entry to fill it in; failures are ignored. Pass `backfillSummaries: false` to skip these requests.

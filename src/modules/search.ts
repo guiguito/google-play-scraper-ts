@@ -1,4 +1,5 @@
 import { BASE_URL } from '../constants';
+import { ValidationError } from '../errors';
 import { request } from '../http/client';
 import * as scriptData from '../utils/scriptData';
 import helper from '../utils/mappingHelpers';
@@ -36,9 +37,9 @@ interface SearchState {
 const MAX_SEARCH_RESULTS = 250;
 
 function normalizeSearchOptions(opts: SearchOptions): SearchState {
-  if (!opts || !opts.term) throw new Error('Search term missing');
+  if (!opts || !opts.term) throw new ValidationError('Search term missing');
   if (opts.num !== undefined && (opts.num < 0 || opts.num > MAX_SEARCH_RESULTS)) {
-    throw new Error(`num must be between 0 and ${MAX_SEARCH_RESULTS}`);
+    throw new ValidationError(`num must be between 0 and ${MAX_SEARCH_RESULTS}`);
   }
   return {
     term: encodeURIComponent(opts.term),

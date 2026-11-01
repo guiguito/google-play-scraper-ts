@@ -7,6 +7,8 @@ const list = require('../dist/cjs/modules/list.js').default;
 const developer = require('../dist/cjs/modules/developer.js').default;
 const permissions = require('../dist/cjs/modules/permissions.js').default;
 const reviews = require('../dist/cjs/modules/reviews.js').default;
+const { ValidationError } = require('../dist/cjs/errors.js');
+const gplay = require('../dist/cjs/index.js');
 
 describe('validation and edge cases', () => {
   it('app: throws when appId missing', async () => {
@@ -52,6 +54,22 @@ describe('validation and edge cases', () => {
     for (const opts of [{ sort: 999 }, { score: 6 }, { score: 0 }, { device: 1 }]) {
       let threw=false; try { await reviews({ appId: 'com.test', ...opts }); } catch { threw=true; }
       expect(threw, JSON.stringify(opts)).to.equal(true);
+    }
+  });
+
+  it('throws ValidationError, exported from the package root, for bad options', async () => {
+    expect(gplay.ValidationError).to.equal(ValidationError);
+    const bad = [
+      () => app({}),
+      () => search(() => Promise.resolve(), { term: 'x', num: 251 }),
+      () => reviews({ appId: 'com.test', score: 6 }),
+      () => list({ category: 'BAD' }),
+      () => gplay.default.availability({ appId: 'x', countries: [] }),
+    ];
+    for (const call of bad) {
+      let error;
+      try { await call(); } catch (e) { error = e; }
+      expect(error, call.toString()).to.be.instanceOf(ValidationError);
     }
   });
 

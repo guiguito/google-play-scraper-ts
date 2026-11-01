@@ -1,4 +1,5 @@
 import { BASE_URL } from '../constants';
+import { ValidationError } from '../errors';
 import { extractor, parse, type GenericMappings } from '../utils/scriptData';
 import helper from '../utils/mappingHelpers';
 import { request } from '../http/client';
@@ -14,7 +15,7 @@ export interface AppOptions {
 
 export async function app(opts: AppOptions): Promise<AppDetails> {
   if (!opts || !opts.appId) {
-    throw new Error('appId missing');
+    throw new ValidationError('appId missing');
   }
   const lang = opts.lang ?? 'en';
   const country = opts.country ?? 'us';

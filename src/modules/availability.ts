@@ -1,4 +1,4 @@
-import { NotFoundError } from '../errors';
+import { NotFoundError, ValidationError } from '../errors';
 import type { AppDetails } from '../types';
 import type { AppOptions } from './app';
 
@@ -20,8 +20,8 @@ export async function availability(
   appFetcher: (args: AppOptions) => Promise<AppDetails>,
   opts: AvailabilityOptions
 ): Promise<Record<string, boolean>> {
-  if (!opts || !opts.appId) throw new Error('appId missing');
-  if (!opts.countries?.length) throw new Error('countries missing');
+  if (!opts || !opts.appId) throw new ValidationError('appId missing');
+  if (!opts.countries?.length) throw new ValidationError('countries missing');
   const entries = await Promise.all(
     opts.countries.map(async (code) => {
       const country = code.toLowerCase();

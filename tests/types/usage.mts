@@ -1,5 +1,5 @@
 // Compiled with --strict against the built .d.ts by `npm run verify:types`; any type regression fails CI.
-import api, { constants, HttpError, type AppDetails, type AppSummary, type Review } from '../../dist/esm/index.js';
+import api, { BlockedError, constants, HttpError, RateLimitError, ValidationError, type AppDetails, type AppSummary, type Review } from '../../dist/esm/index.js';
 
 async function run() {
   const app: AppDetails = await api.app({ appId: 'com.example.app' });
@@ -29,7 +29,9 @@ async function run() {
   await api.list({ age: 'FIVE_UNDER' });
 
   const isHttp = (e: unknown) => e instanceof HttpError && e.status === 404;
-  return [availableIn, title, histogram, summaries, details, devApps, similar, text, short, optional, memoDetails, isHttp];
+  const isThrottled = (e: unknown) => (e instanceof RateLimitError || e instanceof BlockedError) && e.status !== undefined;
+  const isBadInput = (e: unknown) => e instanceof ValidationError;
+  return [availableIn, title, histogram, summaries, details, devApps, similar, text, short, optional, memoDetails, isHttp, isThrottled, isBadInput];
 }
 
 void run;

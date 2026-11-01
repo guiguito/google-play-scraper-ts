@@ -1,4 +1,5 @@
 import { BASE_URL, constants } from '../constants';
+import { ValidationError } from '../errors';
 import { request } from '../http/client';
 import * as scriptData from '../utils/scriptData';
 import type { JsonValue, Review } from '../types';
@@ -187,12 +188,12 @@ type ReviewSort = (typeof constants.sort)[keyof typeof constants.sort];
 type ReviewDevice = (typeof constants.device)[keyof typeof constants.device];
 
 export async function reviews(opts: ReviewsOptions) {
-  if (!opts || !opts.appId) throw new Error('appId missing');
+  if (!opts || !opts.appId) throw new ValidationError('appId missing');
   const validSorts = Object.values(constants.sort) as ReviewSort[];
-  if (opts.sort && !validSorts.includes(opts.sort as ReviewSort)) throw new Error('Invalid sort ' + opts.sort);
-  if (opts.score !== undefined && ![1, 2, 3, 4, 5].includes(opts.score)) throw new Error('Invalid score ' + opts.score);
+  if (opts.sort && !validSorts.includes(opts.sort as ReviewSort)) throw new ValidationError('Invalid sort ' + opts.sort);
+  if (opts.score !== undefined && ![1, 2, 3, 4, 5].includes(opts.score)) throw new ValidationError('Invalid score ' + opts.score);
   if (opts.device !== undefined && !(Object.values(constants.device) as number[]).includes(opts.device)) {
-    throw new Error('Invalid device ' + opts.device);
+    throw new ValidationError('Invalid device ' + opts.device);
   }
   // `??` rather than Object.assign: an explicit `undefined` must not override a default.
   const fullOptions = {

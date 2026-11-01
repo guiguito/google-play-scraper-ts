@@ -1,4 +1,5 @@
 import { BASE_URL } from '../constants';
+import { ValidationError } from '../errors';
 import { request } from '../http/client';
 import * as scriptData from '../utils/scriptData';
 import type { DataSafety, DataSafetyItem, JsonValue } from '../types';
@@ -13,7 +14,7 @@ export interface DataSafetyOptions {
 }
 
 export async function datasafety(opts: DataSafetyOptions): Promise<DataSafety> {
-  if (!opts || !opts.appId) throw new Error('appId missing');
+  if (!opts || !opts.appId) throw new ValidationError('appId missing');
   const PLAYSTORE_URL = `${BASE_URL}/store/apps/datasafety`;
   const searchParams = new URLSearchParams({ id: opts.appId, hl: opts.lang || 'en' });
   const reqUrl = `${PLAYSTORE_URL}?${searchParams}`;

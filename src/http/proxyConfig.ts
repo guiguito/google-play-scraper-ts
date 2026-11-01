@@ -1,4 +1,5 @@
 import { URL } from 'node:url';
+import { ValidationError } from '../errors';
 
 export interface ProxyAuth {
   username: string;
@@ -121,8 +122,8 @@ type NormalizedInput = {
 };
 
 function fromConfig(config: ProxyConfig): NormalizedInput {
-  if (!config.host) throw new Error('Proxy host is required.');
-  if (!config.port) throw new Error('Proxy port is required.');
+  if (!config.host) throw new ValidationError('Proxy host is required.');
+  if (!config.port) throw new ValidationError('Proxy port is required.');
 
   return {
     protocol: config.protocol ?? 'http',
@@ -138,9 +139,9 @@ function fromUrl(definition: ProxyUrlDefinition): NormalizedInput {
   const parsed = new URL(definition.url);
   const protocol = (parsed.protocol?.replace(/:$/, '') || 'http') as 'http' | 'https';
   const host = parsed.hostname;
-  if (!host) throw new Error('Proxy URL must include a hostname.');
+  if (!host) throw new ValidationError('Proxy URL must include a hostname.');
   if (protocol !== 'http' && protocol !== 'https') {
-    throw new Error(`Unsupported proxy protocol: ${protocol}. Only 'http' and 'https' proxies are supported.`);
+    throw new ValidationError(`Unsupported proxy protocol: ${protocol}. Only 'http' and 'https' proxies are supported.`);
   }
   const port = parsed.port ? Number(parsed.port) : protocol === 'https' ? 443 : 80;
   const username = parsed.username ? decodeURIComponent(parsed.username) : '';

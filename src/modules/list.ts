@@ -1,7 +1,7 @@
 import { BASE_URL, constants } from '../constants';
 import { request } from '../http/client';
 import { app } from './app';
-import { HttpError } from '../errors';
+import { HttpError, ValidationError } from '../errors';
 import * as scriptData from '../utils/scriptData';
 import { fetchFullDetails, hydrateMissingSummaries } from '../utils/hydrateMissingSummaries';
 import type { AppDetails, JsonValue } from '../types';
@@ -61,16 +61,16 @@ export async function list(opts: ListOptions): Promise<AppListItem[] | AppDetail
 
   const category = (fullListOpts.category ?? constants.category.APPLICATION) as string;
   if (!categoryValues.includes(category)) {
-    throw new Error(`Invalid category ${category}`);
+    throw new ValidationError(`Invalid category ${category}`);
   }
   const collection = (fullListOpts.collection ?? constants.collection.TOP_FREE) as string;
   if (!collectionValues.includes(collection)) {
-    throw new Error(`Invalid collection ${collection}`);
+    throw new ValidationError(`Invalid collection ${collection}`);
   }
 
   const clusterName = CLUSTER_NAMES[collection];
   if (!clusterName) {
-    throw new Error(`Unsupported collection ${collection}`);
+    throw new ValidationError(`Unsupported collection ${collection}`);
   }
 
   const url = buildInitialUrl(fullListOpts);

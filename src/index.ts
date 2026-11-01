@@ -18,7 +18,7 @@ import categories from './modules/categories';
 
 export type { Constants } from './constants';
 export { constants };
-export { HttpError, NotFoundError } from './errors';
+export { HttpError, NotFoundError, RateLimitError, BlockedError, ValidationError } from './errors';
 export type {
   AppDetails,
   AppSummary,

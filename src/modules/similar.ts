@@ -1,4 +1,5 @@
 import { BASE_URL } from '../constants';
+import { ValidationError } from '../errors';
 import { request } from '../http/client';
 import { app } from './app';
 import * as scriptData from '../utils/scriptData';
@@ -36,7 +37,7 @@ export interface SimilarOptions {
 }
 
 export async function similar(opts: SimilarOptions): Promise<AppListItem[] | AppDetails[]> {
-  if (!opts || !opts.appId) throw new Error('appId missing');
+  if (!opts || !opts.appId) throw new ValidationError('appId missing');
   const merged = { ...opts, lang: opts.lang || 'en', country: opts.country || 'us' };
   const qs = new URLSearchParams({ id: merged.appId, hl: merged.lang, gl: merged.country }).toString();
   const similarUrl = `${BASE_URL}/store/apps/details?${qs}`;

@@ -1,4 +1,5 @@
 import { BASE_URL } from '../constants';
+import { ValidationError } from '../errors';
 import { request } from '../http/client';
 import { app } from './app';
 import * as scriptData from '../utils/scriptData';
@@ -27,7 +28,7 @@ export interface DeveloperOptions {
 }
 
 export async function developer(opts: DeveloperOptions): Promise<AppListItem[] | AppDetails[]> {
-  if (!opts.devId) throw new Error('devId missing');
+  if (!opts.devId) throw new ValidationError('devId missing');
   const merged = { ...opts, num: opts.num ?? 60, lang: opts.lang ?? 'en', country: opts.country ?? 'us' };
   const url = buildUrl(merged);
   const html = await request({ url, method: 'GET', headers: opts.requestOptions?.headers, country: merged.country });
