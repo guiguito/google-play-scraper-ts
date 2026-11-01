@@ -45,7 +45,8 @@ function processShortPermissionsData(data: JsonValue): string[] {
   if (!Array.isArray(parsed)) return [];
   const section = parsed[constants.permission.COMMON];
   if (!Array.isArray(section)) return [];
-  return section
+  // A permission can sit in several groups (Identity and Contacts both list "find accounts on the device"); list it once.
+  const names = section
     .filter((entry): entry is JsonValue => Array.isArray(entry))
     .flatMap((entry) => {
       const permissionsList = asArray(scriptData.getPathValue(entry, MAPPINGS.permissions));
@@ -54,6 +55,7 @@ function processShortPermissionsData(data: JsonValue): string[] {
         .map((item) => (Array.isArray(item) && typeof item[1] === 'string' ? item[1] : undefined))
         .filter((name): name is string => typeof name === 'string');
     });
+  return [...new Set(names)];
 }
 
 function processPermissionData(data: JsonValue): PermissionItem[] {
