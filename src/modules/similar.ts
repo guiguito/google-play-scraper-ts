@@ -58,9 +58,6 @@ async function parseSimilarApps(
     }) ?? candidates[0];
   let clusterSource = pickCluster(collectClusters(clustersValue));
   if (!clusterSource) {
-    clusterSource = pickCluster(collectClusters(similarObject.serviceRequestData));
-  }
-  if (!clusterSource) {
     clusterSource = pickCluster(collectClusters(similarObject as unknown as JsonValue));
   }
   /* istanbul ignore next */

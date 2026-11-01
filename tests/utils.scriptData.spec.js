@@ -1,5 +1,5 @@
 const { expect } = require('chai');
-const { parse, extractor, getPathValue } = require('../dist/cjs/utils/scriptData.js');
+const { parse, extractor, getPathValue, extractDataWithServiceRequestId } = require('../dist/cjs/utils/scriptData.js');
 
 describe('utils/scriptData', () => {
   it('parses AF_initDataCallback blocks and extracts values', () => {
@@ -26,5 +26,14 @@ describe('utils/scriptData', () => {
   it('keeps reading in-range elements of arrays that end with an object', () => {
     expect(getPathValue([{ a: 1 }, { b: 2 }], [1])).to.deep.equal({ b: 2 });
   });
-});
 
+  it('reads the service-request id map without executing page code', () => {
+    globalThis.__PWNED = undefined;
+    const html = `<script>AF_initDataCallback({key: 'ds:7', data: [null, [null, "cluster"]], sideChannel: {}});</script>
+      <script>; var AF_dataServiceRequests = {'ds:7' : {id:'ag2B9c',request:[]}, 'ds:8' : {id: (globalThis.__PWNED = 1, 'x')}}; var AF_initDataChunkQueue = [];</script>`;
+    const data = parse(html);
+    expect(globalThis.__PWNED).to.equal(undefined);
+    expect(data.serviceRequestData['ds:7']).to.deep.equal({ id: 'ag2B9c' });
+    expect(extractDataWithServiceRequestId(data, { path: [1, 1], fun: (v) => v, useServiceRequestId: 'ag2B9c' })).to.equal('cluster');
+  });
+});
