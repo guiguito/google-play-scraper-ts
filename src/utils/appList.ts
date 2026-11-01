@@ -19,12 +19,38 @@ export interface AppListItem {
   score?: number;
 }
 
-function asString(value: JsonValue | undefined): string | undefined {
+export function asString(value: JsonValue | undefined): string | undefined {
   return typeof value === 'string' ? value : undefined;
 }
 
-function asNumber(value: JsonValue | undefined): number | undefined {
+export function asNumber(value: JsonValue | undefined): number | undefined {
   return typeof value === 'number' ? value : undefined;
+}
+
+export function toAbsoluteUrl(path: JsonValue | undefined): string | undefined {
+  return typeof path === 'string' ? new URL(path, BASE_URL).toString() : undefined;
+}
+
+function microToPrice(value: JsonValue | undefined): number {
+  return typeof value === 'number' ? value / 1_000_000 : 0;
+}
+
+/** App card shape used by list, developer and similar pages; `prefix` is where the card sits in each entry. */
+export function cardMappings(prefix: number[] = []): Omit<AppListMappings, 'developerId' | 'priceText'> {
+  const at = (...path: number[]) => [...prefix, ...path];
+  return {
+    title: { path: at(3), fun: asString },
+    appId: { path: at(0, 0), fun: asString },
+    url: { path: at(10, 4, 2), fun: toAbsoluteUrl },
+    icon: { path: at(1, 3, 2), fun: asString },
+    developer: { path: at(14), fun: asString },
+    currency: { path: at(8, 1, 0, 1), fun: asString },
+    price: { path: at(8, 1, 0, 0), fun: microToPrice },
+    free: { path: at(8, 1, 0, 0), fun: (value) => value === 0 },
+    summary: { path: at(13), fun: helper.summaryText },
+    scoreText: { path: at(4, 0), fun: asString },
+    score: { path: at(4, 1), fun: asNumber },
+  };
 }
 
 function parsePrice(value: JsonValue | undefined): number {
@@ -40,14 +66,14 @@ function extractDeveloperId(link: JsonValue | undefined) {
   return typeof link === 'string' ? link.split('?id=')[1] : undefined;
 }
 
-type AppListMappings = { [K in keyof AppListItem]: MappingSpec<AppListItem[K]> };
+type AppListMappings = { [K in keyof AppListItem]-?: MappingSpec<AppListItem[K]> };
 
 const APP_MAPPINGS: AppListMappings = {
   title: { path: [2], fun: asString },
   appId: { path: [12, 0], fun: asString },
   url: {
     path: [9, 4, 2],
-    fun: (path) => (typeof path === 'string' ? new URL(path, BASE_URL).toString() : undefined),
+    fun: toAbsoluteUrl,
   },
   icon: { path: [1, 1, 0, 3, 2], fun: asString },
   developer: { path: [4, 0, 0, 0], fun: asString },
@@ -78,4 +104,4 @@ export function extract(root: ReadonlyArray<string | number>, data: JsonValue): 
   return input.map((item) => mapApp(item));
 }
 
-export default { MAPPINGS: APP_MAPPINGS, extract };
+export default { MAPPINGS: APP_MAPPINGS, extract, cardMappings };

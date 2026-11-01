@@ -2,10 +2,9 @@ import { BASE_URL, constants } from '../constants';
 import { request } from '../http/client';
 import { HttpError } from '../errors';
 import * as scriptData from '../utils/scriptData';
-import helper from '../utils/mappingHelpers';
 import { hydrateMissingSummaries } from '../utils/hydrateMissingSummaries';
 import type { AppDetails, JsonValue } from '../types';
-import type { AppListItem } from '../utils/appList';
+import { cardMappings, type AppListItem } from '../utils/appList';
 
 const CLUSTER_NAMES: Record<string, string> = {
   TOP_FREE: 'topselling_free',
@@ -42,39 +41,12 @@ export interface ListOptions {
   fullDetail?: boolean;
 }
 
-const APPS_MAPPINGS = {
-  title: { path: [0, 3], fun: asString },
-  appId: { path: [0, 0, 0], fun: asString },
-  url: { path: [0, 10, 4, 2], fun: toAbsoluteUrl },
-  icon: { path: [0, 1, 3, 2], fun: asString },
-  developer: { path: [0, 14], fun: asString },
-  currency: { path: [0, 8, 1, 0, 1], fun: asString },
-  price: { path: [0, 8, 1, 0, 0], fun: microToPrice },
-  free: { path: [0, 8, 1, 0, 0], fun: isFreePrice },
-  summary: { path: [0, 13], fun: helper.summaryText },
-  scoreText: { path: [0, 4, 0], fun: asString },
-  score: { path: [0, 4, 1], fun: asNumber },
-} satisfies scriptData.GenericMappings;
 
-function asString(value: JsonValue | undefined) {
-  return typeof value === 'string' ? value : undefined;
-}
 
-function asNumber(value: JsonValue | undefined) {
-  return typeof value === 'number' ? value : undefined;
-}
 
-function toAbsoluteUrl(path: JsonValue | undefined) {
-  return typeof path === 'string' ? new URL(path, BASE_URL).toString() : undefined;
-}
 
-function microToPrice(value: JsonValue | undefined) {
-  return typeof value === 'number' ? value / 1_000_000 : 0;
-}
 
-function isFreePrice(value: JsonValue | undefined) {
-  return value === 0;
-}
+
 
 export async function list(opts: ListOptions): Promise<AppListItem[] | AppDetails[]> {
   const fullListOpts = { ...opts, lang: opts.lang ?? 'en', country: opts.country ?? 'us', num: opts.num ?? 500 };
@@ -122,7 +94,7 @@ export async function list(opts: ListOptions): Promise<AppListItem[] | AppDetail
 
   const appsPath = [0, 1, 0, 28, 0] as const;
   const appsSection = scriptData.getPathValue(data, appsPath);
-  const mapApp = scriptData.extractor<AppListItem>(APPS_MAPPINGS);
+  const mapApp = scriptData.extractor<AppListItem>(cardMappings([0]));
   const processedApps = Array.isArray(appsSection) ? appsSection.map((entry) => mapApp(entry)) : [];
 
   if (fullListOpts.fullDetail) {

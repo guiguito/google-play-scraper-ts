@@ -4,7 +4,7 @@ import * as scriptData from '../utils/scriptData';
 import helper from '../utils/mappingHelpers';
 import { hydrateMissingSummaries } from '../utils/hydrateMissingSummaries';
 import type { AppDetails, JsonValue } from '../types';
-import type { AppListItem } from '../utils/appList';
+import { asNumber, asString, toAbsoluteUrl, type AppListItem } from '../utils/appList';
 import type { AppOptions } from './app';
 
 function getPriceGoogleValue(value: string) {
@@ -29,14 +29,6 @@ interface SearchState {
   requestOptions?: { headers?: Record<string, string> };
 }
 
-function asString(value: JsonValue | undefined) {
-  return typeof value === 'string' ? value : undefined;
-}
-
-function asNumber(value: JsonValue | undefined) {
-  return typeof value === 'number' ? value : undefined;
-}
-
 function normalizeSearchOptions(opts: SearchOptions): SearchState {
   if (!opts || !opts.term) throw new Error('Search term missing');
   if (opts.num && opts.num > 250) throw new Error("The number of results can't exceed 250");
@@ -59,15 +51,6 @@ function extractAppIdFromUrl(urlPath: string | undefined): string | undefined {
   } catch {
     const match = urlPath.match(/[?&]id=([^&]+)/);
     return match ? decodeURIComponent(match[1]) : undefined;
-  }
-}
-
-function toAbsoluteUrl(path: string | undefined): string | undefined {
-  if (!path) return undefined;
-  try {
-    return new URL(path, BASE_URL).toString();
-  } catch {
-    return undefined;
   }
 }
 

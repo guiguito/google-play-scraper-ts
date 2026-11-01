@@ -2,8 +2,7 @@ import { BASE_URL } from '../constants';
 import { request, createClient } from '../http/client';
 import * as scriptData from '../utils/scriptData';
 import { processPages, checkFinished, type ProcessMappings } from '../utils/processPages';
-import appList from '../utils/appList';
-import helper from '../utils/mappingHelpers';
+import appList, { cardMappings } from '../utils/appList';
 import { hydrateMissingSummaries } from '../utils/hydrateMissingSummaries';
 import type { AppDetails, JsonValue } from '../types';
 import type { AppListItem } from '../utils/appList';
@@ -65,13 +64,12 @@ async function parseSimilarApps(
     // minimal debug breadcrumbs to help diagnose live site shape changes
     // avoid serializing entire parsed tree
     const serviceKeys = Object.keys(similarObject.serviceRequestData || {});
-    // eslint-disable-next-line no-console
     console.warn('[similar] clustersValue:', !!clustersValue, 'serviceKeys:', serviceKeys.slice(0, 5));
   }
   if (!clusterSource) {
     // Fallback: extract any app cards directly from the details page payloads
-    const inlineApps = extractAnyApps(similarObject);
-    const refined = refineSimilarList(inlineApps, opts.appId);
+    // ponytail: no cluster to page through, so cap at the 60 apps a cluster would give.
+    const refined = extractAnyApps(similarObject).filter((a) => a.appId !== opts.appId).slice(0, 60);
     if (refined.length > 0) {
       if (opts.fullDetail) return fetchFullDetail(refined, opts);
       const fetchDetails = async ({ appId, lang, country }: { appId: string; lang: string; country: string }) => {
@@ -142,39 +140,18 @@ function collectClusters(value: JsonValue | undefined): JsonValue[] {
   return out;
 }
 
-// First page (cluster HTML) mappings follow the reference implementation
-// and differ from subsequent batchexecute pages parsed by appList.
-function extractFirstPageApps(parsed: JsonValue): AppListItem[] {
-  function asString(v: JsonValue | undefined) { return typeof v === 'string' ? v : undefined; }
-  function asNumber(v: JsonValue | undefined) { return typeof v === 'number' ? v : undefined; }
-  const FIRST_PAGE_MAPPINGS = {
-    title: { path: [3] as const, fun: asString },
-    appId: { path: [0, 0] as const, fun: asString },
-    url: { path: [10, 4, 2] as const, fun: (p: JsonValue | undefined) => typeof p === 'string' ? new URL(p, BASE_URL).toString() : undefined },
-    icon: { path: [1, 3, 2] as const, fun: asString },
-    developer: { path: [14] as const, fun: asString },
-    currency: { path: [8, 1, 0, 1] as const, fun: asString },
-    price: { path: [8, 1, 0, 0] as const, fun: (v: JsonValue | undefined) => typeof v === 'number' ? v / 1_000_000 : 0 },
-    free: { path: [8, 1, 0, 0] as const, fun: (v: JsonValue | undefined) => v === 0 },
-    summary: { path: [13] as const, fun: helper.summaryText },
-    scoreText: { path: [4, 0] as const, fun: asString },
-    score: { path: [4, 1] as const, fun: asNumber },
-  } satisfies Record<string, { path: ReadonlyArray<string | number>; fun: (v: JsonValue | undefined) => unknown }>;
+// Cluster pages use the plain card shape; some reuse the appList shape, so fill gaps from it.
+const mapCard = scriptData.extractor<AppListItem>(cardMappings());
+const mapListCard = scriptData.extractor<AppListItem>(appList.MAPPINGS);
 
-  const mapPrimary = scriptData.extractor(FIRST_PAGE_MAPPINGS as unknown as Record<string, any>);
-  // Fallback extractor: some cluster pages reuse the appList card shape
-  const mapFallback = scriptData.extractor(appList.MAPPINGS as unknown as Record<string, any>);
+function mapAnyCard(node: JsonValue): AppListItem {
+  const card = Object.entries(mapCard(node)).filter(([, v]) => v !== undefined);
+  return { ...mapListCard(node), ...Object.fromEntries(card) };
+}
+
+function extractFirstPageApps(parsed: JsonValue): AppListItem[] {
   const items = scriptData.getPathValue(parsed, INITIAL_MAPPINGS.apps);
-  if (!Array.isArray(items)) return [];
-  return items.map((i) => {
-    const a = mapPrimary(i) as AppListItem;
-    const b = mapFallback(i) as AppListItem;
-    const merged: AppListItem = { ...b };
-    for (const [k, v] of Object.entries(a)) {
-      if (v !== undefined) (merged as any)[k] = v;
-    }
-    return merged;
-  });
+  return Array.isArray(items) ? items.map(mapAnyCard) : [];
 }
 
 async function fetchFullDetail(apps: AppListItem[], opts: { lang: string; country: string }) {
@@ -186,36 +163,11 @@ async function fetchFullDetail(apps: AppListItem[], opts: { lang: string; countr
 }
 
 function extractAnyApps(parsed: JsonValue): AppListItem[] {
-  function asString(v: JsonValue | undefined) { return typeof v === 'string' ? v : undefined; }
-  function asNumber(v: JsonValue | undefined) { return typeof v === 'number' ? v : undefined; }
-  const FIRST_PAGE_MAPPINGS = {
-    title: { path: [3] as const, fun: asString },
-    appId: { path: [0, 0] as const, fun: asString },
-    url: { path: [10, 4, 2] as const, fun: (p: JsonValue | undefined) => typeof p === 'string' ? new URL(p, BASE_URL).toString() : undefined },
-    icon: { path: [1, 3, 2] as const, fun: asString },
-    developer: { path: [14] as const, fun: asString },
-    currency: { path: [8, 1, 0, 1] as const, fun: asString },
-    price: { path: [8, 1, 0, 0] as const, fun: (v: JsonValue | undefined) => typeof v === 'number' ? v / 1_000_000 : 0 },
-    free: { path: [8, 1, 0, 0] as const, fun: (v: JsonValue | undefined) => v === 0 },
-    summary: { path: [13] as const, fun: helper.summaryText },
-    scoreText: { path: [4, 0] as const, fun: asString },
-    score: { path: [4, 1] as const, fun: asNumber },
-  };
-  const mapPrimary = scriptData.extractor(FIRST_PAGE_MAPPINGS as unknown as Record<string, any>);
-  const mapFallback = scriptData.extractor(appList.MAPPINGS as unknown as Record<string, any>);
-
   const seen = new Set<string>();
   const results: AppListItem[] = [];
   let budget = 5000; // cap traversal to avoid runaway costs
-  function mergePreferDefined(a: AppListItem, b: AppListItem): AppListItem {
-    const out: AppListItem = { ...a };
-    for (const [k, v] of Object.entries(b)) { if (v !== undefined) (out as any)[k] = v; }
-    return out;
-  }
   function consider(node: JsonValue) {
-    const a = mapPrimary(node as any) as AppListItem;
-    const b = mapFallback(node as any) as AppListItem;
-    const merged = mergePreferDefined(b, a);
+    const merged = mapAnyCard(node);
     if (typeof merged.appId === 'string' && typeof merged.url === 'string' && merged.url.includes('/store/apps/details?id=')) {
       if (!seen.has(merged.appId)) {
         seen.add(merged.appId);
@@ -259,34 +211,6 @@ function extractAnyApps(parsed: JsonValue): AppListItem[] {
     walk(parsed);
   }
   return results;
-}
-
-function refineSimilarList(apps: AppListItem[], seedAppId: string): AppListItem[] {
-  const segs = seedAppId.split('.');
-  const vendor2 = segs.slice(0, 2).join('.'); // e.g. com.spotify
-  const vendor3 = segs.slice(0, 3).join('.'); // e.g. com.spotify.music
-  const keyword = segs[1]?.toLowerCase() || '';
-  function score(a: AppListItem): number {
-    let s = 0;
-    const id = (a.appId || '').toLowerCase();
-    const title = (a.title || '').toLowerCase();
-    const dev = (a.developer || '').toLowerCase();
-    if (id.startsWith(vendor3)) s += 5;
-    if (id.startsWith(vendor2)) s += 4;
-    if (keyword && (title.includes(keyword) || dev.includes(keyword))) s += 3;
-    // lightweight boost for well-known same-company alternates
-    if (keyword === 'spotify' && id.startsWith('fm.anchor')) s += 4; // Creators/Anchor
-    return s;
-  }
-  const withScores = apps.map((a) => ({ a, s: score(a) }));
-  const strong = withScores.filter(({ s }) => s > 0).sort((x, y) => y.s - x.s).map(({ a }) => a);
-  if (strong.length >= 3) return strong.slice(0, 12);
-  // If not enough strong matches, return a short list of the most relevant others
-  const others = withScores
-    .filter(({ s }) => s === 0)
-    .map(({ a }) => a)
-    .slice(0, Math.max(0, 12 - strong.length));
-  return [...strong, ...others];
 }
 
 export default similar;

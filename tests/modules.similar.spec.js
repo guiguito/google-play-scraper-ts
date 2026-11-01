@@ -10,7 +10,6 @@ describe('modules/similar', () => {
     // Details page with AF_dataServiceRequests providing clusters
     const cluster = [];
     cluster[21] = [null, ['Similar apps', null, [null, null, null, null, ['', '', '/store/apps/collection/cluster']]]];
-    // eslint-disable-next-line no-useless-escape
     const clusterText = JSON.stringify([cluster]).replace(/\"/g, "'");
     const dsText = `{'ds:tag': { id: 'ag2B9c', 1: { 1: ${clusterText} } }}`;
     const afInit = `<script>AF_initDataCallback({key: 'ds:tag', data: ${JSON.stringify({ 1: { 1: [cluster] } })}, sideChannel: {}});</script>`;
