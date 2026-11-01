@@ -1,5 +1,6 @@
 const { expect } = require('chai');
-const { constants } = require('../dist/cjs/constants.js');
+const nock = require('nock');
+const { BASE_URL, constants } = require('../dist/cjs/constants.js');
 const app = require('../dist/cjs/modules/app.js').default;
 const search = require('../dist/cjs/modules/search.js').default;
 const list = require('../dist/cjs/modules/list.js').default;
@@ -50,5 +51,16 @@ describe('validation and edge cases', () => {
   it('reviews: throws on invalid sort', async () => {
     let threw=false; try { await reviews({ appId: 'com.test', sort: 999 }); } catch { threw=true; }
     expect(threw).to.equal(true);
+  });
+
+  it('explicit undefined options fall back to defaults', async () => {
+    let devUrl;
+    let reviewBody;
+    nock(BASE_URL).get((u) => { devUrl = u; return u.startsWith('/store/apps/dev'); }).reply(200, '<html></html>');
+    nock(BASE_URL).post(/batchexecute/, (b) => { reviewBody = b['f.req']; return true; }).reply(200, ")]}'\n[[null,null,null]]");
+    await developer({ devId: '123', lang: undefined, country: undefined, num: undefined });
+    await reviews({ appId: 'com.test', num: undefined, sort: undefined });
+    expect(devUrl).to.contain('hl=en').and.contain('gl=us');
+    expect(reviewBody).to.contain('[2,2,[150,');
   });
 });

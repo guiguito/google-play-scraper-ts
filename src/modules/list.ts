@@ -77,7 +77,7 @@ function isFreePrice(value: JsonValue | undefined) {
 }
 
 export async function list(opts: ListOptions) {
-  const fullListOpts = Object.assign({ lang: 'en', country: 'us', num: 500 }, opts);
+  const fullListOpts = { ...opts, lang: opts.lang ?? 'en', country: opts.country ?? 'us', num: opts.num ?? 500 };
 
   const categoryValues = Object.values(constants.category) as string[];
   const collectionValues = Object.values(constants.collection) as string[];

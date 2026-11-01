@@ -170,7 +170,15 @@ export async function reviews(opts: ReviewsOptions) {
   if (!opts || !opts.appId) throw new Error('appId missing');
   const validSorts = Object.values(constants.sort) as ReviewSort[];
   if (opts.sort && !validSorts.includes(opts.sort as ReviewSort)) throw new Error('Invalid sort ' + opts.sort);
-  const fullOptions = Object.assign({ sort: constants.sort.NEWEST, lang: 'en', country: 'us', num: 150, paginate: false, nextPaginationToken: null }, opts) as ReviewsOptions & { sort: ReviewSort; lang: string; country: string; num: number };
+  // `??` rather than Object.assign: an explicit `undefined` must not override a default.
+  const fullOptions = {
+    ...opts,
+    sort: (opts.sort ?? constants.sort.NEWEST) as ReviewSort,
+    lang: opts.lang ?? 'en',
+    country: opts.country ?? 'us',
+    num: opts.num ?? 150,
+    paginate: opts.paginate ?? false,
+  };
   const requestType = !fullOptions.nextPaginationToken ? REQUEST_TYPE.initial : REQUEST_TYPE.paginated;
   const token = fullOptions.nextPaginationToken || '%token%';
   return makeReviewsRequest(
