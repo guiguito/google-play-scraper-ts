@@ -1,7 +1,6 @@
 import { BASE_URL } from '../constants';
 import { request } from '../http/client';
 import * as scriptData from '../utils/scriptData';
-import { checkFinished } from '../utils/processPages';
 import helper from '../utils/mappingHelpers';
 import { hydrateMissingSummaries } from '../utils/hydrateMissingSummaries';
 import type { JsonValue } from '../types';
@@ -30,90 +29,12 @@ interface SearchState {
   requestOptions?: { headers?: Record<string, string> };
 }
 
-const GLOBAL_INITIAL_MAPPINGS = {
-  apps: ['ds:1', 0, 1, 0, 0, 0] as const,
-  sections: ['ds:1', 0, 1, 0, 0] as const,
-};
-
-const GLOBAL_SECTIONS_MAPPING = {
-  token: [1] as const,
-};
-
 function asString(value: JsonValue | undefined) {
   return typeof value === 'string' ? value : undefined;
 }
 
 function asNumber(value: JsonValue | undefined) {
   return typeof value === 'number' ? value : undefined;
-}
-
-const GLOBAL_APP_MAPPINGS = {
-  title: { path: [2], fun: asString },
-  appId: { path: [12, 0], fun: asString },
-  url: {
-    path: [9, 4, 2],
-    fun: (path) => (typeof path === 'string' ? new URL(path, BASE_URL).toString() : undefined),
-  },
-  icon: { path: [1, 1, 0, 3, 2], fun: asString },
-  developer: { path: [4, 0, 0, 0], fun: asString },
-  developerId: {
-    path: [4, 0, 0, 1, 4, 2],
-    fun: (link) => (typeof link === 'string' ? link.split('?id=')[1] : undefined),
-  },
-  currency: { path: [7, 0, 3, 2, 1, 0, 1], fun: asString },
-  price: {
-    path: [7, 0, 3, 2, 1, 0, 0],
-    fun: (price) => (typeof price === 'number' ? price / 1_000_000 : 0),
-  },
-  free: {
-    path: [7, 0, 3, 2, 1, 0, 0],
-    fun: (price) => price === 0,
-  },
-  summary: { path: [4, 1, 1, 1], fun: helper.summaryText },
-  scoreText: { path: [6, 0, 2, 1, 0], fun: asString },
-  score: { path: [6, 0, 2, 1, 1], fun: asNumber },
-} satisfies scriptData.GenericMappings;
-
-const mapGlobalSearchApp = scriptData.extractor<AppListItem>(GLOBAL_APP_MAPPINGS);
-
-async function initialGlobalRequest(opts: SearchState) {
-  const url = `${BASE_URL}/work/search?q=${opts.term}&hl=${opts.lang}&gl=${opts.country}&price=${opts.price}`;
-  const html = await request({ url, method: 'GET', headers: opts.requestOptions?.headers, country: opts.country });
-  return processGlobalFirstPage(html, opts, [], GLOBAL_INITIAL_MAPPINGS);
-}
-
-function isGlobalTokenSection(section: JsonValue | undefined) {
-  const token = scriptData.getPathValue(section ?? null, GLOBAL_SECTIONS_MAPPING.token);
-  return typeof token === 'string';
-}
-
-async function processGlobalFirstPage(
-  html: string | JsonValue,
-  opts: SearchState,
-  savedApps: AppListItem[],
-  mappings: typeof GLOBAL_INITIAL_MAPPINGS
-): Promise<AppListItem[]> {
-  const parsed = typeof html === 'string' ? scriptData.parse(html) : html;
-  const sections = scriptData.getPathValue(parsed, mappings.sections);
-  if (!Array.isArray(sections)) return [];
-  const tokenSection = sections.find((section) => isGlobalTokenSection(section));
-  const appsSection = scriptData.getPathValue(parsed, mappings.apps);
-  const processedApps = Array.isArray(appsSection) ? appsSection.map((app) => mapGlobalSearchApp(app)) : [];
-  const tokenValue = tokenSection ? scriptData.getPathValue(tokenSection, GLOBAL_SECTIONS_MAPPING.token) : undefined;
-  const token = typeof tokenValue === 'string' ? tokenValue : undefined;
-  const results = [...savedApps, ...processedApps];
-  return checkFinished(
-    {
-      num: opts.num,
-      numberOfApps: opts.num,
-      fullDetail: opts.fullDetail,
-      lang: opts.lang,
-      country: opts.country,
-      requestOptions: opts.requestOptions,
-    },
-    results,
-    token
-  );
 }
 
 function normalizeSearchOptions(opts: SearchOptions): SearchState {
@@ -275,16 +196,6 @@ export interface SearchOptions {
   fullDetail?: boolean;
   price?: 'all' | 'free' | 'paid';
   requestOptions?: { headers?: Record<string, string> };
-}
-
-export async function searchGlobal(
-  appFetcher: (args: AppOptions) => Promise<unknown>,
-  opts: SearchOptions
-) {
-  const state = normalizeSearchOptions(opts);
-  const results = await initialGlobalRequest(state);
-  if (state.fullDetail) return fetchFullDetailResults(appFetcher, results, state);
-  return hydrateMissingSummaries(results, { lang: state.lang, country: state.country }, appFetcher);
 }
 
 export async function search(

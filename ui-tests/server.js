@@ -10,15 +10,7 @@ const { setProxyUsageListener } = require('../dist/cjs/http/client.js');
 const METHODS = {
   app: (options) => gplay.app(options),
   list: (options) => gplay.list(options),
-  search: (options = {}) => {
-    const { mode, ...rest } = options;
-    const variant = mode === 'global' ? 'global' : 'modern';
-    const fn =
-      variant === 'global' && typeof gplay.searchGlobal === 'function'
-        ? gplay.searchGlobal
-        : gplay.search;
-    return fn(rest);
-  },
+  search: (options) => gplay.search(options),
   suggest: (options) => gplay.suggest(options),
   developer: (options) => gplay.developer(options),
   reviews: (options) => gplay.reviews(options),
@@ -295,14 +287,14 @@ const server = http.createServer((req, res) => {
         const parsed = body ? JSON.parse(body) : {};
         options = parsed?.options ?? {};
         const start = Date.now();
-        const label = formatMethodLabel(method, options);
+        const label = formatMethodLabel(method);
         console.log(`[ui-tests] ${label} → options`, options);
         const result = await handler(options);
         console.log(`[ui-tests] ${label} ✔ ${Date.now() - start}ms`);
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify(result));
       } catch (error) {
-        const label = formatMethodLabel(method, options);
+        const label = formatMethodLabel(method);
         console.error(`[ui-tests] ${label} ✖`, {
           message: error?.message || String(error),
           status: error?.status,
@@ -326,10 +318,6 @@ server.listen(port, () => {
   console.log('Set LIVE=1 when launching this server if you need fresh data from Google Play.');
 });
 
-function formatMethodLabel(method, options) {
-  if (method === 'search') {
-    const variant = options?.mode === 'global' ? 'global' : 'store';
-    return `search[${variant}]()`;
-  }
+function formatMethodLabel(method) {
   return `${method}()`;
 }

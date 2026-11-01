@@ -2,7 +2,7 @@ import { constants } from './constants';
 import { configureProxy as applyProxyConfig, type ProxySettings } from './http/proxyConfig';
 import app from './modules/app';
 import list from './modules/list';
-import search, { searchGlobal, type SearchOptions } from './modules/search';
+import search, { type SearchOptions } from './modules/search';
 import suggest from './modules/suggest';
 import developer from './modules/developer';
 import reviews from './modules/reviews';
@@ -26,7 +26,6 @@ const baseApi = {
   app,
   list,
   search: (opts: SearchOptions) => search(app, opts),
-  searchGlobal: (opts: SearchOptions) => searchGlobal(app, opts),
   suggest,
   developer,
   reviews,
@@ -44,8 +43,6 @@ export type {
   ProxyUrlDefinition,
   ProxyDefinition,
 } from './http/proxyConfig';
-
-export { searchGlobal } from './modules/search';
 
 export interface CreatePlayStoreApiOptions {
   proxies?: ProxySettings | null;
@@ -82,13 +79,11 @@ export function memoized(_opts?: MemoizeOptions): PlayStoreApi {
   }
   const mApp = m(app);
   const memoizedSearch = m((opts: SearchOptions) => search(mApp, opts));
-  const memoizedSearchGlobal = m((opts: SearchOptions) => searchGlobal(mApp, opts));
   return {
     ...constants,
     app: mApp,
     list: m(list),
     search: memoizedSearch,
-    searchGlobal: memoizedSearchGlobal,
     suggest: m(suggest),
     developer: m(developer),
     reviews: m(reviews),

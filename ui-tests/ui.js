@@ -48,16 +48,6 @@ const formConfigs = [
         { label: 'free', value: 'free' },
         { label: 'paid', value: 'paid' }
       ] },
-      {
-        name: 'mode',
-        label: 'Result source',
-        type: 'select',
-        value: 'modern',
-        options: [
-          { label: 'Default (/store/search)', value: 'modern' },
-          { label: 'Legacy global (/work/search)', value: 'global' }
-        ]
-      },
       { name: 'fullDetail', label: 'Return full detail', type: 'checkbox' },
       { name: 'lang', label: 'Language', value: 'en' },
       { name: 'country', label: 'Country', value: 'us' }
@@ -67,7 +57,6 @@ const formConfigs = [
         ...values,
         num: Number(values.num),
         fullDetail: Boolean(values.fullDetail),
-        mode: values.mode || 'modern',
       };
     },
   },
@@ -273,20 +262,6 @@ async function runMethod(cfg, form) {
   }
 }
 
-function renderContextBanner(context) {
-  if (!niceViewEl || !context) return;
-  if (context.method !== 'search') return;
-  const info = document.createElement('div');
-  const variant = context.options?.mode === 'global' ? 'global' : 'modern';
-  info.className = 'result-info';
-  info.dataset.variant = variant;
-  info.textContent =
-    variant === 'global'
-      ? 'Legacy results via /work/search (proxy required for regional data)'
-      : 'Default results via /store/search';
-  niceViewEl.append(info);
-}
-
 function renderResultLink(context) {
   if (!niceViewEl || !context) return;
   const href = resolvePreviewLink(context);
@@ -303,7 +278,6 @@ function renderResultLink(context) {
 function renderNicePlaceholder(message = 'Select a method and run it to see a preview.', context) {
   if (!niceViewEl) return;
   niceViewEl.innerHTML = '';
-  renderContextBanner(context);
   renderResultLink(context);
   const note = document.createElement('div');
   note.className = 'empty-state';
@@ -314,7 +288,6 @@ function renderNicePlaceholder(message = 'Select a method and run it to see a pr
 function renderNiceError(message, context) {
   if (!niceViewEl) return;
   niceViewEl.innerHTML = '';
-  renderContextBanner(context);
   renderResultLink(context);
   const note = document.createElement('div');
   note.className = 'empty-state error';
@@ -325,7 +298,6 @@ function renderNiceError(message, context) {
 function renderNiceView(result, context = {}) {
   if (!niceViewEl) return;
   niceViewEl.innerHTML = '';
-  renderContextBanner(context);
   renderResultLink(context);
 
   const normalized = normalizeNiceView(result);
@@ -649,12 +621,8 @@ function resolvePreviewLink(context) {
   params.set('gl', opts.country || 'us');
   const price = normalizePriceFilter(opts.price);
   params.set('price', String(price));
-  const mode = opts.mode === 'global' ? 'global' : 'modern';
-  if (mode === 'modern') {
-    params.set('c', 'apps');
-  }
-  const basePath = mode === 'global' ? '/work/search' : '/store/search';
-  return `https://play.google.com${basePath}?${params.toString()}`;
+  params.set('c', 'apps');
+  return `https://play.google.com/store/search?${params.toString()}`;
 }
 
 function normalizePriceFilter(price) {
