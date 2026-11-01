@@ -48,16 +48,20 @@ async function parseSimilarApps(
   client = createClient()
 ) {
   const clustersValue = scriptData.extractDataWithServiceRequestId(similarObject, INITIAL_MAPPINGS.clusters);
-  const inIdCandidates = collectClusters(clustersValue);
-  // Mimic reference behavior: prefer the first candidate cluster if available
-  let clusterSource = inIdCandidates[0];
+  // Play lists "More by <developer>" before the similar cluster, with localized titles. The developer's
+  // name appears in that title in every language, so skip it; fall back to the first cluster otherwise.
+  const developer = scriptData.getPathValue(similarObject as unknown as JsonValue, ['ds:5', 1, 2, 68, 0]);
+  const pickCluster = (candidates: JsonValue[]) =>
+    candidates.find((c) => {
+      const title = scriptData.getPathValue(c, CLUSTER_MAPPING.title);
+      return !(typeof developer === 'string' && typeof title === 'string' && title.includes(developer));
+    }) ?? candidates[0];
+  let clusterSource = pickCluster(collectClusters(clustersValue));
   if (!clusterSource) {
-    const srCandidates = collectClusters(similarObject.serviceRequestData);
-    clusterSource = srCandidates[0];
+    clusterSource = pickCluster(collectClusters(similarObject.serviceRequestData));
   }
   if (!clusterSource) {
-    const pageCandidates = collectClusters(similarObject as unknown as JsonValue);
-    clusterSource = pageCandidates[0];
+    clusterSource = pickCluster(collectClusters(similarObject as unknown as JsonValue));
   }
   /* istanbul ignore next */
   if (!clusterSource && process.env.GP_DEBUG) {
@@ -112,11 +116,6 @@ async function parseSimilarApps(
     return app({ appId, lang, country });
   };
   return hydrateMissingSummaries(paged as AppListItem[], opts, fetchDetails);
-}
-
-function isSimilarCluster(cluster: JsonValue | undefined) {
-  const title = scriptData.getPathValue(cluster ?? null, CLUSTER_MAPPING.title);
-  return title === SIMILAR_APPS || title === SIMILAR_GAMES;
 }
 
 function getParsedCluster(similarObject: JsonValue | undefined) {

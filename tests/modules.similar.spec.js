@@ -42,6 +42,44 @@ describe('modules/similar', () => {
     scope2.done();
   });
 
+  // Live layout (Nov 2026): ds:8 lists "More by <developer>" first and the similar cluster second,
+  // with localized titles, so the choice can't rely on English titles or on taking the first cluster.
+  it('picks the similar cluster over the "more by developer" one, in any language', async () => {
+    const mkCluster = (title, url) => {
+      const c = [];
+      c[21] = [[], [title, null, [null, null, null, null, ['', '', url]]]];
+      return c;
+    };
+    const ds5 = [];
+    ds5[1] = [];
+    ds5[1][2] = [];
+    ds5[1][2][68] = ['Acme Corp'];
+    const ds8 = [null, [null, [
+      mkCluster('Autres applications de "Acme Corp"', '/store/apps/dev?id=123'),
+      mkCluster('Jeux similaires', '/store/apps/collection/cluster?gsr=SIMILAR'),
+    ]]];
+    const af = (key, data) => `<script>AF_initDataCallback({key: '${key}', data: ${JSON.stringify(data)}, sideChannel: {}});</script>`;
+    const clusterPage = (appId) => {
+      const item = [];
+      item[0] = [appId];
+      item[3] = appId;
+      item[13] = [null, 'Summary'];
+      const ds3 = [];
+      ds3[0] = [];
+      ds3[0][1] = [];
+      ds3[0][1][0] = [];
+      ds3[0][1][0][21] = [[item]];
+      return af('ds:3', ds3);
+    };
+
+    nock(BASE_URL).get((uri) => uri.startsWith('/store/apps/details')).reply(200, af('ds:5', ds5) + af('ds:8', ds8));
+    nock(BASE_URL).get((uri) => uri.startsWith('/store/apps/collection/cluster')).reply(200, clusterPage('com.similar.app'));
+    nock(BASE_URL).get((uri) => uri.startsWith('/store/apps/dev')).reply(200, clusterPage('com.acme.other'));
+
+    const res = await similar({ appId: 'com.acme.app', lang: 'fr', country: 'fr' });
+    expect(res.map((a) => a.appId)).to.deep.equal(['com.similar.app']);
+  });
+
   it('falls back to service requests when cluster id changes', async () => {
     const cluster = [];
     cluster[21] = [null, ['Similar apps', null, [null, null, null, null, ['', '', '/store/apps/collection/cluster/fallback']]]];
