@@ -8,7 +8,7 @@
 - `reference/`: Upstream references only (gitignored). Do not import from here.
 
 ## Build, Test, and Development Commands
-- `npm i`: Install dependencies (Node 18+).
+- `npm i`: Install dependencies (Node 20.18.1+).
 - `npm run build`: Build ESM to `dist/esm` and CJS to `dist/cjs`.
 - `npm test`: Build CJS then run mocha tests in `tests/`.
 - `npm run lint` / `npm run lint:fix`: Lint (ESLint flat config).
