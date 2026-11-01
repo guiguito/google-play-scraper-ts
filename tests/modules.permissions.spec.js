@@ -20,6 +20,19 @@ describe('modules/permissions', () => {
     scope.done();
   });
 
+  it('lists a permission once in the short list when several groups share it', async () => {
+    const data = [];
+    data[constants.permission.COMMON] = [
+      ['Identity', null, [['x', 'find accounts on the device']]],
+      ['Contacts', null, [['x', 'find accounts on the device'], ['y', 'read your contacts']]],
+    ];
+    const body = ")]}'\n" + JSON.stringify([[null, null, JSON.stringify(data)]]);
+    const scope = nock(BASE_URL).post(/\/batchexecute/).reply(200, body);
+    const res = await permissions({ appId: 'com.test', short: true });
+    expect(res).to.deep.equal(['find accounts on the device', 'read your contacts']);
+    scope.done();
+  });
+
   it('returns detailed permissions list', async () => {
     const data = [];
     data[constants.permission.COMMON] = [
