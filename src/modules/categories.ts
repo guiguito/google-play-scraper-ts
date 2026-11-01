@@ -1,21 +1,9 @@
-import * as cheerio from 'cheerio';
-import { BASE_URL } from '../constants';
-import { request } from '../http/client';
+import { constants } from '../constants';
 
-const PLAYSTORE_URL = `${BASE_URL}/store/apps`;
-const CATEGORY_URL_PREFIX = '/store/apps/category/';
-
-export async function categories() {
-  const html = await request({ url: PLAYSTORE_URL, method: 'GET' });
-  const $ = cheerio.load(html);
-  const categoryIds = $('ul li a')
-    .toArray()
-    .map((el) => $(el).attr('href') || '')
-    .filter((url) => url.startsWith(CATEGORY_URL_PREFIX) && !url.includes('?age='))
-    .map((url) => url.substr(CATEGORY_URL_PREFIX.length));
-  categoryIds.push('APPLICATION');
-  return categoryIds;
+// ponytail: Play's /store/apps stopped rendering its category menu (Nov 2026) and no page lists them all,
+// so return the known list (all verified live). Re-check constants.category if Google adds categories.
+export async function categories(): Promise<string[]> {
+  return Object.values(constants.category);
 }
 
 export default categories;
-

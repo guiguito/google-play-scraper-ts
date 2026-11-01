@@ -348,7 +348,7 @@ The result contains separate `sharedData` and `collectedData` arrays of `DataSaf
 
 ### `categories(): Promise<string[]>`
 
-Scrape the public category directory and return category identifiers (e.g. `'APPLICATION'`, `'GAME_TRIVIA'`).
+Return every category identifier (e.g. `'APPLICATION'`, `'GAME_TRIVIA'`), the same values as `constants.category`. Play no longer publishes a full category directory, so no request is made.
 
 ### `memoized(options?: { maxAge?: number; max?: number }): PlayStoreApi`
 
