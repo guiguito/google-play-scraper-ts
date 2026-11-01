@@ -79,4 +79,36 @@ describe('modules/developer', () => {
     devScope.done();
     appScope.done();
   });
+
+  it('returns full app details when fullDetail is true', async () => {
+    const item = [];
+    item[0] = [];
+    item[0][3] = 'List Title';
+    item[0][0] = ['com.full.app'];
+    item[0][13] = [null, 'Summary'];
+    const ds3 = [];
+    ds3[0] = [];
+    ds3[0][1] = [];
+    ds3[0][1][0] = [];
+    ds3[0][1][0][22] = [];
+    ds3[0][1][0][22][0] = [item];
+    const devScope = nock(BASE_URL)
+      .get((uri) => uri.startsWith('/store/apps/developer'))
+      .reply(200, `<script>AF_initDataCallback({key: 'ds:3', data: ${JSON.stringify(ds3)}, sideChannel: {}});</script>`);
+
+    const details = [];
+    details[1] = [];
+    details[1][2] = [];
+    details[1][2][0] = ['Detail Title'];
+    const appScope = nock(BASE_URL)
+      .get((uri) => uri.startsWith('/store/apps/details?id=com.full.app'))
+      .reply(200, `<script>AF_initDataCallback({key: 'ds:5', data: ${JSON.stringify(details)}, sideChannel: {}});</script>`);
+
+    const res = await developer({ devId: 'Acme', num: 1, fullDetail: true });
+    expect(res).to.have.length(1);
+    expect(res[0].title).to.equal('Detail Title');
+    expect(res[0]).to.have.property('appId', 'com.full.app');
+    devScope.done();
+    appScope.done();
+  });
 });

@@ -93,15 +93,21 @@ async function parseDeveloperApps(html: JsonValue, opts: { devId: string; num: n
   const tokenValue = scriptData.getPathValue(parsed, initialMappings.token);
   const token = typeof tokenValue === 'string' ? tokenValue : undefined;
   const apps = await checkFinished(
-    { num: opts.num, numberOfApps: opts.num, fullDetail: opts.fullDetail, lang: opts.lang, country: opts.country },
+    { num: opts.num, numberOfApps: opts.num, lang: opts.lang, country: opts.country },
     processedApps,
     token
   );
-  if (opts.fullDetail) return apps;
   const fetchDetails = async ({ appId, lang, country }: { appId: string; lang: string; country: string }) => {
     const { app } = await import('./app');
     return app({ appId, lang, country });
   };
+  if (opts.fullDetail) {
+    return Promise.all(
+      apps
+        .filter((item): item is AppListItem & { appId: string } => typeof item.appId === 'string')
+        .map((item) => fetchDetails({ appId: item.appId, lang: opts.lang, country: opts.country }))
+    );
+  }
   return hydrateMissingSummaries(apps, { lang: opts.lang, country: opts.country }, fetchDetails);
 }
 
