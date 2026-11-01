@@ -16,7 +16,7 @@ Fully typed Node.js client for Google Play Store metadata inspired by [`google-p
 npm install google-play-scraper-ts
 ```
 
-> Requires Node.js 18 or newer.
+> Requires Node.js 20.18.1 or newer.
 
 ## Quick start
 
@@ -45,13 +45,14 @@ const topFreeMusic = await gplay.list({
 
 - `lang` controls the Play Store UI language (default `'en'`).
 - `country` controls geotargeting and pricing (default `'us'`).
-- Methods that accept `requestOptions` forward `requestOptions.headers` to the underlying HTTP client so you can inject cookies or additional headers (see per-method notes—`suggest` currently ignores the option for API parity).
-- Every function returns a Promise; runtime errors (invalid inputs, store shape changes, HTTP failures) surface as rejected promises.
+- Every method (except `categories`) accepts `requestOptions: { headers }`; the headers are sent with every request the call makes, including the `app()` requests behind `fullDetail` and the summary backfill.
+- Every function returns a Promise; runtime errors (invalid inputs, store shape changes, HTTP failures) surface as rejected promises. HTTP failures reject with `HttpError` (exported, with `status` and `body`); 404s, e.g. an unknown app, reject with its subclass `NotFoundError`.
+- Methods with `fullDetail` are overloaded: `fullDetail: true` resolves to `AppDetails[]`, otherwise to `AppSummary[]`. With `fullDetail`, apps whose detail page returns 404 (removed, or not offered in that country) are left out; any other error rejects the call.
 
 ### Proxy routing
 
 - The HTTP client can route calls through HTTP(S) proxies keyed by country (ISO alpha-2, case-insensitive). If no per-country match is found, the optional `default` proxy is used instead of a direct connection.
-- Configure proxies once via `configureProxies(settings)` or construct an isolated client with `createPlayStoreApi({ proxies })`. All methods automatically opt into proxy usage—the `country` argument (or `gl` query param) determines the lookup.
+- Configure proxies via `configureProxies(settings)` or `createPlayStoreApi({ proxies })`. Proxy settings are process-wide: `createPlayStoreApi({ proxies })` replaces them for every client, `proxies: null` clears them, and omitting `proxies` leaves them untouched. All methods automatically opt into proxy usage—the `country` argument (or `gl` query param) determines the lookup.
 - HTTPS proxies are supported; pass `protocol: 'https'` or use an `https://` URL. To work with debugging gateways that present expired/self-signed certificates, set `rejectUnauthorized: false` (defaults to `true`).
 
 ```ts
@@ -79,6 +80,8 @@ All methods are asynchronous and resolve to typed results. The library mirrors t
 
 ### Shared types
 
+All result types are exported: `import type { AppDetails, AppSummary, Review, PermissionItem, DataSafety, DataSafetyItem } from 'google-play-scraper-ts';`
+
 #### `AppDetails`
 
 **Identification & copy**
@@ -87,8 +90,8 @@ All methods are asynchronous and resolve to typed results. The library mirrors t
 | --- | --- | --- |
 | `appId` | `string` | Requested package identifier. |
 | `url` | `string` | Canonical details URL including `hl`/`gl` query params. |
-| `title` | `string` | App title localized to `lang`. |
-| `summary` | `string` | Short marketing blurb. |
+| `title` | `string \| undefined` | App title localized to `lang`. |
+| `summary` | `string \| undefined` | Short marketing blurb. |
 | `description` | `string` | Plain-text description (HTML stripped). |
 | `descriptionHTML` | `string` | Raw HTML description from the store. |
 | `genre` | `string \| undefined` | Primary genre label. |
@@ -160,7 +163,7 @@ All methods are asynchronous and resolve to typed results. The library mirrors t
 | `version` | `string` | Latest version string (falls back to `'VARY'`). |
 | `androidVersion` | `string` | Minimum Android version, normalised (e.g. `'5.0'` or `'VARY'`). |
 | `androidVersionText` | `string` | Raw minimum version text from the listing. |
-| `androidMaxVersion` | `string \| undefined` | Maximum supported Android version if provided. |
+| `androidMaxVersion` | `string` | Maximum supported Android version, normalised (`'VARY'` when absent). |
 | `contentRating` | `string \| undefined` | Content rating label (e.g. `'Teen'`). |
 | `contentRatingDescription` | `string \| undefined` | Additional content rating guidance. |
 | `adSupported` | `boolean` | `true` if the listing discloses ads. |
@@ -197,7 +200,7 @@ Returned by list, search, developer and similar methods when `fullDetail` is `fa
 | `userImage` | `string \| undefined` | Avatar image URL. |
 | `date` | `string \| null` | ISO string of the review timestamp (null if unavailable). |
 | `score` | `number \| undefined` | Star rating (1–5). |
-| `scoreText` | `string \| null \| undefined` | Rating represented as text. |
+| `scoreText` | `string \| null` | Rating represented as text. |
 | `url` | `string \| undefined` | Deep link back to the review on Play. |
 | `title` | `null` | Placeholder (Play no longer serves review titles). |
 | `text` | `string \| undefined` | Review body. |
@@ -212,15 +215,15 @@ Returned by list, search, developer and similar methods when `fullDetail` is `fa
 | Field | Type | Description |
 | --- | --- | --- |
 | `permission` | `string` | Permission string (e.g. `'CAMERA'`). |
-| `type` | `0 \| 1` | Section identifier (`0` = `constants.permission.COMMON`, `1` = `constants.permission.OTHER`). |
+| `type` | `string \| undefined` | Permission group label from Play (e.g. `'Location'`). |
 
 #### `DataSafetyItem`
 
 | Field | Type | Description |
 | --- | --- | --- |
 | `data` | `string \| undefined` | Data point name (e.g. `'email'`). |
-| `optional` | `boolean \| null \| undefined` | Whether the data is optional (null when Google has no flag). |
-| `purpose` | `string \| null \| undefined` | Usage purpose label (e.g. `'ads'`). |
+| `optional` | `boolean \| null` | Whether the data is optional (null when Google has no flag). |
+| `purpose` | `string \| null` | Usage purpose label (e.g. `'ads'`). |
 | `type` | `string \| undefined` | Category grouping (e.g. `'Personal info'`). |
 
 ### `app(options): Promise<AppDetails>`
@@ -244,11 +247,13 @@ Retrieve curated charts (Top Free, Top Paid, Grossing, …). Set `fullDetail` to
 | --- | --- | --- | --- |
 | `collection` | `constants.collection` | `constants.collection.TOP_FREE` | Chart to fetch. |
 | `category` | `constants.category` | `constants.category.APPLICATION` | App category filter. |
-| `age` | `constants.age \| string \| undefined` | – | Optional age-range filter. |
+| `age` | `constants.age` value (e.g. `constants.age.FIVE_UNDER`) | – | Optional age-range filter. |
 | `lang` | `string` | `'en'` | Locale for metadata. |
 | `country` | `string` | `'us'` | Region / storefront. |
 | `num` | `number` | `500` | Maximum entries (Play caps at ~500). |
 | `fullDetail` | `boolean` | `false` | When true, fetch each item with `app()`. |
+| `backfillSummaries` | `boolean` | `true` | Set to `false` to skip the extra `app()` request per entry that lacks a summary. |
+| `requestOptions` | `{ headers?: Record<string, string> }` | – | Extra HTTP headers for every request the call makes. |
 
 Returns an array of `AppSummary` entries, or `AppDetails` entries when `fullDetail` is enabled.
 
@@ -261,10 +266,11 @@ Search the Play Store catalogue.
 | `term` | `string` | – | Search query (required). |
 | `lang` | `string` | `'en'` | Metadata language. |
 | `country` | `string` | `'us'` | Storefront country. |
-| `num` | `number` | `20` | Requested maximum results (`<= 250` validated). Play serves at most 30 results per query on `/store/search` (no further pages exist). |
+| `num` | `number` | `20` | Requested maximum results (0–250, validated). Play serves at most 30 results per query on `/store/search` (no further pages exist). |
 | `fullDetail` | `boolean` | `false` | When true, hydrate each match via `app()`. |
 | `price` | `'all' \| 'free' \| 'paid'` | `'all'` | Price filter. |
 | `requestOptions` | `{ headers?: Record<string, string> }` | – | Forwarded headers for the search request. |
+| `backfillSummaries` | `boolean` | `true` | Set to `false` to skip the extra `app()` request per entry that lacks a summary. |
 
 Results mirror the modern `/store/search` layout (including single-result pages). When `fullDetail` is enabled each result is re-fetched via `app()`.
 
@@ -277,7 +283,7 @@ Fetch autocomplete suggestions from Play.
 | `term` | `string` | – | Partial query (required). |
 | `lang` | `string` | `'en'` | Suggestion language. |
 | `country` | `string` | `'us'` | Storefront country. |
-| `requestOptions` | `{ headers?: Record<string, string> }` | – | Reserved for API compatibility (currently ignored). |
+| `requestOptions` | `{ headers?: Record<string, string> }` | – | Extra HTTP headers for the suggest request. |
 
 Resolves to an array of suggestion strings ordered by relevance.
 
@@ -292,6 +298,8 @@ List applications published by a developer profile.
 | `country` | `string` | `'us'` | Storefront country. |
 | `num` | `number` | `60` | Maximum apps to collect. |
 | `fullDetail` | `boolean` | `false` | Set to `true` for `AppDetails` results. |
+| `backfillSummaries` | `boolean` | `true` | Set to `false` to skip the extra `app()` request per entry that lacks a summary. |
+| `requestOptions` | `{ headers?: Record<string, string> }` | – | Extra HTTP headers for every request the call makes. |
 
 Returns developer listings as `AppSummary` entries, or full details when `fullDetail` is enabled.
 
@@ -308,6 +316,7 @@ Pull paginated user reviews for a given app.
 | `num` | `number` | `150` | Maximum reviews to gather before stopping. |
 | `paginate` | `boolean` | `false` | When `false`, auto-follow tokens until `num` reviews or exhaust data. |
 | `nextPaginationToken` | `string \| null` | `null` | Pass a token from a previous response to resume manually. |
+| `requestOptions` | `{ headers?: Record<string, string> }` | – | Extra HTTP headers for every request the call makes. |
 
 When `paginate` is `true`, the method fetches a single page and returns the next token (if any). The `data` array contains `Review` entries.
 
@@ -321,6 +330,8 @@ Retrieve apps from the “Similar” / “Related” clusters for a given listin
 | `lang` | `string` | `'en'` | Metadata language. |
 | `country` | `string` | `'us'` | Storefront country. |
 | `fullDetail` | `boolean` | `false` | Hydrate each result via `app()` when `true`. |
+| `backfillSummaries` | `boolean` | `true` | Set to `false` to skip the extra `app()` request per entry that lacks a summary. |
+| `requestOptions` | `{ headers?: Record<string, string> }` | – | Extra HTTP headers for every request the call makes. |
 
 Returns up to ~60 related apps as `AppSummary` or `AppDetails` entries.
 
@@ -334,6 +345,7 @@ Inspect runtime permissions declared in the Play listing.
 | `short` | `boolean` | `false` | When `true`, return a flat list of permission strings. Otherwise return `PermissionItem` objects grouped by type. |
 | `lang` | `string` | `'en'` | Language for permission descriptions (when available). |
 | `country` | `string` | `'us'` | Storefront country. |
+| `requestOptions` | `{ headers?: Record<string, string> }` | – | Extra HTTP headers for every request the call makes. |
 
 ### `datasafety(options): Promise<{ sharedData: DataSafetyItem[]; collectedData: DataSafetyItem[]; securityPractices: Array<{ practice?: string; description?: string }>; privacyPolicyUrl?: string }>`
 
@@ -343,6 +355,8 @@ Fetch the Google Play “Data safety” disclosure for an app.
 | --- | --- | --- | --- |
 | `appId` | `string` | – | Target package identifier. |
 | `lang` | `string` | `'en'` | Disclosure language. |
+| `country` | `string` | – | Only used to pick a per-country proxy. |
+| `requestOptions` | `{ headers?: Record<string, string> }` | – | Extra HTTP headers for every request the call makes. |
 
 The result contains separate `sharedData` and `collectedData` arrays of `DataSafetyItem`s, a list of high-level `securityPractices`, and an optional `privacyPolicyUrl`.
 
@@ -359,18 +373,17 @@ Wrap the API with an in-memory cache.
 | `maxAge` | `number` | `300_000` | Cache TTL in milliseconds. |
 | `max` | `number` | `1_000` | Maximum cache size; oldest entries are evicted first. |
 
-The returned object has the same surface as the default export (including a `memoized` method) but memoises every call.
+The returned object has the same surface as the default export (including a `memoized` method) but memoises every call. Concurrent identical calls share one request, and failed calls are not cached.
 
 ### Constants helper
 
-The default export re-exports structured enums under `constants` for convenience:
+The enums are available as the named export `constants` (and spread at the top level of the default export, e.g. `gplay.category`):
 
 - `constants.collection` – `TOP_FREE`, `TOP_PAID`, `GROSSING`.
 - `constants.category` – All Play categories (apps, games, family variants, etc.).
 - `constants.sort` – Review sort orders (`NEWEST`, `RATING`, `HELPFULNESS`).
 - `constants.age` – Age-range filters used by the family charts.
 - `constants.permission` – Permission buckets (`COMMON`, `OTHER`).
-- `constants.clusters` – Internal cluster identifiers used by list parsing utilities.
 
 ## Releases
 
@@ -396,31 +409,32 @@ The default export re-exports structured enums under `constants` for convenience
 - Record live fixtures for `similar()` (optional):
   - `LIVE=1 npm run build && node scripts/record-similar-fixture.js --appId com.spotify.music --lang en --country us --out tests/fixtures/similar`
   - Re-run tests with fixture replay: `USE_FIXTURE=1 npm test`
-- `constants.sort` – Review sort order values
-- `constants.age`, `constants.permission`, plus other helpers
 
 ## Retries & throttling
 
-- **Retries** – The internal HTTP client retries 5xx responses with exponential backoff (configurable via helper APIs).
+- **Retries** – The internal HTTP client retries network errors, 5xx and 429 (rate limited) responses twice with exponential backoff (300 ms, 600 ms), waiting longer when Play sends a `Retry-After` header (capped at 60 s).
+- **Timeouts** – Requests time out after 30 s of socket inactivity, then count as a retriable network error.
 - **Concurrency** – At most 5 requests are open at once across the process; extra requests (e.g. `fullDetail` fan-outs) wait for a free slot.
+- **Summary backfill** – When a list/search/developer/similar result lacks a summary, one `app()` call is made per such entry to fill it in; failures are ignored. Pass `backfillSummaries: false` to skip these requests.
 - **Caching** – Use `memoized()` to deduplicate hot requests. For full control, combine with your own throttling or caching layer.
 
 ## TypeScript support
 
 - Published package includes type declarations generated from the TypeScript sources.
-- `npm run verify:types` compiles `tests/types/usage.ts` against the generated `.d.ts` to guarantee correctness.
+- `npm run verify:types` compiles `tests/types/usage.mts` in strict mode, with `nodenext` resolution, against the generated `.d.ts`.
 
 ## Running the docs & tests
 
 ```bash
 npm run lint
-LIVE=1 npm test    # only needed when you want to exercise live tests (default suite uses fixtures)
-npm run test        # builds both ESM and CJS bundles before running mocha
+npm test            # builds ESM + CJS, then runs the offline suite
+npm run test:live   # live smoke tests against the real Play Store (also run weekly in CI)
+npm run test:coverage
 npm run docs        # generates TypeDoc output in /docs
 npm run verify:types
 ```
 
-> By default the test suite blocks outbound HTTP requests. Set `LIVE=1` to allow network calls when you want to run ad-hoc live checks.
+> The default suite blocks outbound HTTP requests; `npm run test:live` sets `LIVE=1` to allow them.
 
 ### Manual UI testing playground
 

@@ -3,9 +3,8 @@ import https from 'node:https';
 import tls from 'node:tls';
 import { URL as NodeURL } from 'node:url';
 import type { ClientRequest } from 'node:http';
-import { HttpError } from '../errors';
+import { HttpError, NotFoundError } from '../errors';
 import { getProxyForCountry, type ResolvedProxyConfig } from './proxyConfig';
-import { SimpleCookieJar } from './cookies';
 
 type ProxyUsageListener = (info: { url: string; proxy?: ResolvedProxyConfig; attempt: number }) => void;
 
@@ -33,6 +32,8 @@ export type RetryOptions = {
 // fullDetail and summary backfills fan out one app() per result (up to 500 for list()); cap open requests.
 // ponytail: one process-wide limit; make it configurable if someone needs more (e.g. behind rotating proxies).
 const MAX_CONCURRENT_REQUESTS = 5;
+// Without a timeout, 5 stalled sockets would hold every slot and block all later calls in the process.
+const DEFAULT_TIMEOUT_MS = 30_000;
 let activeRequests = 0;
 const waitingRequests: Array<() => void> = [];
 
@@ -63,7 +64,18 @@ type ExecutionOptions = {
 
 function sleep(ms: number): Promise<void> { return new Promise((r) => setTimeout(r, ms)); }
 
-function isRetriableStatus(status?: number): boolean { return status !== undefined && status >= 500 && status < 600; }
+// 429 = Play rate limiting; retried after Retry-After (or the normal backoff), like 5xx.
+function isRetriableStatus(status?: number): boolean { return status !== undefined && (status === 429 || (status >= 500 && status < 600)); }
+
+const MAX_RETRY_AFTER_MS = 60_000;
+
+function retryAfterMs(header: string | string[] | undefined): number | undefined {
+  const value = Array.isArray(header) ? header[0] : header;
+  if (!value) return undefined;
+  const seconds = Number(value);
+  const ms = Number.isFinite(seconds) ? seconds * 1000 : Date.parse(value) - Date.now();
+  return Number.isFinite(ms) && ms > 0 ? Math.min(ms, MAX_RETRY_AFTER_MS) : undefined;
+}
 
 function deriveCountry(explicit: string | undefined, url: NodeURL): string | undefined {
   if (explicit) return explicit;
@@ -74,10 +86,9 @@ function deriveCountry(explicit: string | undefined, url: NodeURL): string | und
 
 export async function request(
   opts: RequestOptions,
-  retry: RetryOptions = { retries: 2, backoffMs: 300 },
-  hooks?: { onProxyResolved?: (info: { url: string; proxy?: ResolvedProxyConfig; attempt: number }) => void }
+  retry: RetryOptions = { retries: 2, backoffMs: 300 }
 ): Promise<string> {
-  const { url, method = 'GET', headers = {}, body, timeoutMs, country } = opts;
+  const { url, method = 'GET', headers = {}, body, timeoutMs = DEFAULT_TIMEOUT_MS, country } = opts;
   const requestHeaders = { ...DEFAULT_HEADERS, ...headers };
   const urlObj = new NodeURL(url);
   const proxy = getProxyForCountry(deriveCountry(country, urlObj));
@@ -88,7 +99,6 @@ export async function request(
   while (attempt <= retry.retries) {
     try {
       proxyUsageListener?.({ url, proxy, attempt });
-      hooks?.onProxyResolved?.({ url, proxy, attempt });
       const text = await withRequestSlot(() =>
         proxy
           ? requestViaProxy(urlObj, { method, headers: requestHeaders, body, timeoutMs }, proxy)
@@ -101,9 +111,9 @@ export async function request(
       const shouldRetry = attempt < retry.retries && (status === undefined || isRetriableStatus(status));
       if (!shouldRetry) break;
 
-      const backoff = Math.min(
-        retry.maxBackoffMs ?? Number.MAX_SAFE_INTEGER,
-        retry.backoffMs * Math.pow(2, attempt)
+      const backoff = Math.max(
+        Math.min(retry.maxBackoffMs ?? Number.MAX_SAFE_INTEGER, retry.backoffMs * Math.pow(2, attempt)),
+        error instanceof HttpError ? error.retryAfterMs ?? 0 : 0
       );
       await sleep(backoff);
       attempt += 1;
@@ -113,21 +123,6 @@ export async function request(
 
   if (lastErr instanceof Error) throw lastErr;
   throw new Error(String(lastErr));
-}
-
-export function createClient(
-  retry: RetryOptions = { retries: 2, backoffMs: 300 },
-  hooks?: { onProxyResolved?: (info: { url: string; proxy?: ResolvedProxyConfig; attempt: number }) => void }
-) {
-  const jar = new SimpleCookieJar();
-  return {
-    async request(opts: RequestOptions): Promise<string> {
-      const headers = jar.apply(opts.url, opts.headers ?? {});
-      return request({ ...opts, headers }, retry, hooks);
-    },
-    jar,
-    retry,
-  };
 }
 
 function requestDirect(url: NodeURL, opts: ExecutionOptions): Promise<string> {
@@ -283,7 +278,10 @@ function consumeResponse(
       return;
     }
     const message = res.statusMessage ? ` ${res.statusMessage}` : '';
-    reject(new HttpError(`Request failed: ${status}${message}`, status, body));
+    const msg = `Request failed: ${status}${message}`;
+    const error = status === 404 ? new NotFoundError(msg, body) : new HttpError(msg, status, body);
+    error.retryAfterMs = retryAfterMs(res.headers['retry-after']);
+    reject(error);
   });
 }
 

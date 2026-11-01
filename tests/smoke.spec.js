@@ -15,4 +15,14 @@ describe('smoke', () => {
     const esm = await import(esmPath);
     expect(typeof esm.default?.app).to.equal('function');
   });
+
+  it('createPlayStoreApi keeps proxies set with configureProxies unless proxies is passed', () => {
+    const { configureProxies, createPlayStoreApi } = require('../dist/cjs/index.js');
+    const { getProxyForCountry } = require('../dist/cjs/http/proxyConfig.js');
+    configureProxies({ default: { host: 'p.example', port: 8080 } });
+    createPlayStoreApi({ memoize: { maxAge: 1000 } });
+    expect(getProxyForCountry('us')?.host).to.equal('p.example');
+    createPlayStoreApi({ proxies: null });
+    expect(getProxyForCountry('us')).to.equal(undefined);
+  });
 });

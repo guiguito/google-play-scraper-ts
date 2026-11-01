@@ -3,13 +3,9 @@ const { EventEmitter } = require('node:events');
 const http = require('node:http');
 const https = require('node:https');
 const tls = require('node:tls');
-const { Headers: UndiciHeaders } = require('undici');
-const { request, createClient } = require('../dist/cjs/http/client.js');
-const { SimpleCookieJar } = require('../dist/cjs/http/cookies.js');
-const { HttpError } = require('../dist/cjs/errors.js');
+const { request } = require('../dist/cjs/http/client.js');
+const { HttpError, NotFoundError } = require('../dist/cjs/errors.js');
 const { configureProxy, resetProxyConfiguration } = require('../dist/cjs/http/proxyConfig.js');
-
-const HeadersCtor = global.Headers || UndiciHeaders;
 
 afterEach(() => {
   resetProxyConfiguration();
@@ -27,6 +23,7 @@ function stubRequests(responses) {
     const res = new EventEmitter();
     res.statusCode = current.statusCode;
     res.statusMessage = current.statusMessage ?? '';
+    res.headers = current.headers ?? {};
 
     process.nextTick(() => {
       callback(res);
@@ -39,6 +36,7 @@ function stubRequests(responses) {
         if (event === 'error') current.errorHandler = handler;
         return this;
       },
+      setTimeout() {},
       write() {},
       end() {
         if (current.error) {
@@ -73,12 +71,25 @@ describe('http/client request', () => {
     restore();
   });
 
+  it('retries 429 responses after the Retry-After delay', async () => {
+    const restore = stubRequests([
+      { statusCode: 429, body: 'slow down', headers: { 'retry-after': '0.05' } },
+      { statusCode: 200, body: 'ok' },
+    ]);
+    const started = Date.now();
+    const body = await request({ url: 'http://rate.test/' }, { retries: 1, backoffMs: 1 });
+    expect(body).to.equal('ok');
+    expect(Date.now() - started).to.be.at.least(45);
+    restore();
+  });
+
   it('throws HttpError with status and body for non-retriable responses', async () => {
     const restore = stubRequests([{ statusCode: 404, statusMessage: 'Not Found', body: 'missing' }]);
     try {
       await request({ url: 'http://fail.test/' }, { retries: 0, backoffMs: 0 });
       expect.fail('should have thrown');
     } catch (err) {
+      expect(err).to.be.instanceOf(NotFoundError);
       expect(err).to.be.instanceOf(HttpError);
       expect(err.status).to.equal(404);
       expect(err.body).to.equal('missing');
@@ -203,33 +214,5 @@ describe('proxy routing', () => {
       https.request = originals.https;
       tls.connect = originals.tls;
     }
-  });
-});
-
-describe('http/cookies SimpleCookieJar', () => {
-  it('stores cookies from headers and applies them per-domain', () => {
-    const jar = new SimpleCookieJar();
-    const headers = new HeadersCtor();
-    headers.set('set-cookie', 'session=abc; Path=/');
-    jar.setFromHeaders('https://cookie.test/', headers);
-    const applied = jar.apply('https://cookie.test/path', {});
-    expect(applied.Cookie).to.equal('session=abc');
-    const untouched = jar.apply('https://other.test/', { Existing: 'value' });
-    expect(untouched).to.deep.equal({ Existing: 'value' });
-  });
-
-  it('integrates with createClient to reuse cookies', async () => {
-    const client = createClient({ retries: 0, backoffMs: 0 });
-    const headers = new HeadersCtor();
-    headers.set('set-cookie', 'token=xyz; Path=/');
-    client.jar.setFromHeaders('http://cookie.test/', headers);
-
-    let capturedHeaders;
-    const restore = stubRequests([
-      { statusCode: 200, body: 'ok', inspect: (opts) => { capturedHeaders = opts.headers; } },
-    ]);
-    await client.request({ url: 'http://cookie.test/' });
-    expect(capturedHeaders.Cookie).to.equal('token=xyz');
-    restore();
   });
 });

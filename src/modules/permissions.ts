@@ -1,30 +1,34 @@
 import { BASE_URL, constants } from '../constants';
 import { request } from '../http/client';
 import * as scriptData from '../utils/scriptData';
-import type { JsonValue } from '../types';
+import type { JsonValue, PermissionItem } from '../types';
 
-export interface PermissionItem {
-  permission: string;
-  type: JsonValue;
-}
+export type { PermissionItem };
 
 export interface PermissionsOptions {
   appId: string;
   lang?: string;
   country?: string;
   short?: boolean;
+  /** Extra HTTP headers for every request this call makes (including app() fan-outs). */
+  requestOptions?: { headers?: Record<string, string> };
 }
 
-export async function permissions(opts: PermissionsOptions) {
+export function permissions(opts: PermissionsOptions & { short: true }): Promise<string[]>;
+export function permissions(opts: PermissionsOptions & { short?: false }): Promise<PermissionItem[]>;
+export function permissions(opts: PermissionsOptions): Promise<string[] | PermissionItem[]>;
+export async function permissions(opts: PermissionsOptions): Promise<string[] | PermissionItem[]> {
   if (!opts || !opts.appId) throw new Error('appId missing');
   const lang = opts.lang || 'en';
   const country = opts.country || 'us';
-  const body = `f.req=%5B%5B%5B%22xdSrCf%22%2C%22%5B%5Bnull%2C%5B%5C%22${opts.appId}%5C%22%2C7%5D%2C%5B%5D%5D%5D%22%2Cnull%2C%221%22%5D%5D%5D`;
-  const url = `${BASE_URL}/_/PlayStoreUi/data/batchexecute?rpcids=qnKhOb&f.sid=-697906427155521722&bl=boq_playuiserver_20190903.08_p0&hl=${lang}&gl=${country}&authuser&soc-app=121&soc-platform=1&soc-device=1&_reqid=1065213`;
-  const headers = { 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8' };
+  const inner = [[null, [opts.appId, 7], []]];
+  const body = `f.req=${encodeURIComponent(JSON.stringify([[['xdSrCf', JSON.stringify(inner), null, '1']]]))}`;
+  const url = `${BASE_URL}/_/PlayStoreUi/data/batchexecute?rpcids=qnKhOb&f.sid=-697906427155521722&bl=boq_playuiserver_20190903.08_p0&hl=${encodeURIComponent(lang)}&gl=${encodeURIComponent(country)}&authuser&soc-app=121&soc-platform=1&soc-device=1&_reqid=1065213`;
+  const headers = { 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8', ...opts.requestOptions?.headers };
   const html = await request({ url, method: 'POST', body, headers, country });
-  const input = JSON.parse(html.substring(5));
-  const data = JSON.parse(input[0][2]) as JsonValue | null;
+  const input = JSON.parse(html.substring(5)) as JsonValue;
+  const payload = Array.isArray(input) && Array.isArray(input[0]) ? input[0][2] : undefined;
+  const data = typeof payload === 'string' ? (JSON.parse(payload) as JsonValue | null) : null;
   if (data === null) return [] as string[];
   return opts.short ? processShortPermissionsData(data) : processPermissionData(data);
 }
@@ -67,7 +71,7 @@ function flatMapPermissions(permissionEntry: JsonValue): PermissionItem[] {
   const permissionsList = asArray(scriptData.getPathValue(permissionEntry, MAPPINGS.permissions));
   if (!permissionsList) return [];
   const mappings = getPermissionMappings(typeValue);
-  const mapPermission = scriptData.extractor<{ permission?: string; type: JsonValue }>(mappings);
+  const mapPermission = scriptData.extractor<{ permission?: string; type?: string }>(mappings);
   return permissionsList
     .map((item) => mapPermission(item))
     .filter((result): result is PermissionItem => typeof result.permission === 'string');
@@ -81,7 +85,7 @@ function getPermissionMappings(type: JsonValue) {
     },
     type: {
       path: [],
-      fun: () => type,
+      fun: () => (typeof type === 'string' ? type : undefined),
     },
   } as scriptData.GenericMappings;
 }

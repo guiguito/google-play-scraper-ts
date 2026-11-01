@@ -46,4 +46,19 @@ describe('memoized helper', () => {
     await memo.suggest({ term: 'alpha' });
     alpha2.done();
   });
+
+  it('shares one request between concurrent identical calls and does not cache failures', async () => {
+    const memo = gplay.memoized({ maxAge: 10_000 });
+    const body = `)]}'\n${JSON.stringify([[null, null, JSON.stringify([[[['same', null]]]])]])}`;
+    const once = nock(BASE_URL).post(/IJ4APc/).once().reply(200, body);
+    const [a, b] = await Promise.all([memo.suggest({ term: 'same' }), memo.suggest({ term: 'same' })]);
+    expect(a).to.deep.equal(b);
+    once.done();
+
+    nock(BASE_URL).post(/IJ4APc/).reply(404, 'nope');
+    await memo.suggest({ term: 'flaky' }).catch(() => {});
+    const retry = nock(BASE_URL).post(/IJ4APc/).reply(200, body);
+    expect(await memo.suggest({ term: 'flaky' })).to.deep.equal(['same']);
+    retry.done();
+  });
 });

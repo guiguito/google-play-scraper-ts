@@ -26,4 +26,15 @@ describe('http/client concurrency', () => {
     expect(results).to.have.lengthOf(12);
     expect(peak).to.equal(5);
   });
+
+  it('times out stalled requests so they release their slot', async () => {
+    nock('https://play.google.com').get('/stall').times(5).delay(1000).reply(200, 'late');
+    nock('https://play.google.com').get('/ok').reply(200, 'ok');
+    const stalled = Array.from({ length: 5 }, () =>
+      request({ url: 'https://play.google.com/stall', timeoutMs: 50 }, { retries: 0, backoffMs: 0 }).catch((e) => e.message)
+    );
+    const ok = await request({ url: 'https://play.google.com/ok' });
+    expect(ok).to.equal('ok');
+    expect(await Promise.all(stalled)).to.deep.equal(Array(5).fill('Request timed out'));
+  });
 });

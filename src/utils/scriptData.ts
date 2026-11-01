@@ -46,23 +46,10 @@ export function getPathValue(source: JsonValue, path: Path): JsonValue | undefin
 }
 
 export function extractDataWithServiceRequestId(parsedData: ParsedScriptData, spec: MappingSpecFn<unknown>) {
+  // The service-request table only maps a ds key to a request id; the data itself lives in the parsed ds block.
   const root = parsedData.serviceRequestData ?? {};
-  const keys = Object.keys(root);
-  // Prefer matching the specific service request id when available
-  const matchKey = keys.find((k) => {
-    const dsValues = (root as Record<string, JsonObject & { id?: string }>)[k];
-    return dsValues?.id === spec.useServiceRequestId;
-  });
-  if (matchKey) {
-    const node = getPathValue((root as Record<string, JsonObject>)[matchKey], spec.path);
-    if (node !== undefined) return node;
-  }
-  // Fallback: search all service requests at the given path
-  for (const k of keys) {
-    const node = getPathValue((root as Record<string, JsonObject>)[k], spec.path);
-    if (node !== undefined) return node;
-  }
-  return undefined;
+  const matchKey = Object.keys(root).find((k) => root[k]?.id === spec.useServiceRequestId);
+  return matchKey ? getPathValue(parsedData[matchKey] ?? null, spec.path) : undefined;
 }
 
 function isMappingSpecFn<T>(spec: MappingSpec<T>): spec is MappingSpecFn<T> {
@@ -111,15 +98,12 @@ export function parse(response: string): ParsedScriptData {
 }
 
 export function parseServiceRequests(response: string): Record<string, JsonObject & { id?: string }> {
-  const scriptRegex = /; var AF_dataServiceRequests[\s\S]*?; var AF_initDataChunkQueue/g;
-  const valueRegex = /{'ds:[\s\S]*}}/g;
-  const matches = response.match(scriptRegex);
-  if (!matches) return {};
-  const [data] = matches;
-  const valueMatch = data.match(valueRegex);
-  if (!valueMatch) return {};
-  const value = eval(`(${valueMatch[0]})`) as Record<string, JsonObject & { id?: string }>;
-  return value;
+  const block = response.match(/; var AF_dataServiceRequests[\s\S]*?; var AF_initDataChunkQueue/);
+  if (!block) return {};
+  // Never eval page content: only read the `'ds:N' : {id:'...'` pairs, which is all callers need.
+  const out: Record<string, JsonObject & { id?: string }> = {};
+  for (const [, key, id] of block[0].matchAll(/'(ds:[^']+)'\s*:\s*\{\s*id\s*:\s*'([^']*)'/g)) out[key] = { id };
+  return out;
 }
 
 export default { parse, parseServiceRequests, extractor, extractDataWithServiceRequestId, getPathValue };

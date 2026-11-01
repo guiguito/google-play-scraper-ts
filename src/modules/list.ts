@@ -1,11 +1,11 @@
 import { BASE_URL, constants } from '../constants';
 import { request } from '../http/client';
+import { app } from './app';
 import { HttpError } from '../errors';
 import * as scriptData from '../utils/scriptData';
-import helper from '../utils/mappingHelpers';
-import { hydrateMissingSummaries } from '../utils/hydrateMissingSummaries';
-import type { JsonValue } from '../types';
-import type { AppListItem } from '../utils/appList';
+import { fetchFullDetails, hydrateMissingSummaries } from '../utils/hydrateMissingSummaries';
+import type { AppDetails, JsonValue } from '../types';
+import { cardMappings, type AppListItem } from '../utils/appList';
 
 const CLUSTER_NAMES: Record<string, string> = {
   TOP_FREE: 'topselling_free',
@@ -33,51 +33,28 @@ function buildInitialUrl(opts: { lang: string; country: string; age?: string }) 
 }
 
 export interface ListOptions {
-  collection?: keyof typeof constants.collection;
-  category?: keyof typeof constants.category | string;
-  age?: keyof typeof constants.age | string;
+  collection?: (typeof constants.collection)[keyof typeof constants.collection];
+  category?: (typeof constants.category)[keyof typeof constants.category];
+  age?: (typeof constants.age)[keyof typeof constants.age];
   lang?: string;
   country?: string;
   num?: number;
   fullDetail?: boolean;
+  /** Extra HTTP headers for every request this call makes (including app() fan-outs). */
+  requestOptions?: { headers?: Record<string, string> };
+  /** Set to false to skip the extra app() request per entry that lacks a summary. Default true. */
+  backfillSummaries?: boolean;
 }
 
-const APPS_MAPPINGS = {
-  title: { path: [0, 3], fun: asString },
-  appId: { path: [0, 0, 0], fun: asString },
-  url: { path: [0, 10, 4, 2], fun: toAbsoluteUrl },
-  icon: { path: [0, 1, 3, 2], fun: asString },
-  developer: { path: [0, 14], fun: asString },
-  currency: { path: [0, 8, 1, 0, 1], fun: asString },
-  price: { path: [0, 8, 1, 0, 0], fun: microToPrice },
-  free: { path: [0, 8, 1, 0, 0], fun: isFreePrice },
-  summary: { path: [0, 13], fun: helper.summaryText },
-  scoreText: { path: [0, 4, 0], fun: asString },
-  score: { path: [0, 4, 1], fun: asNumber },
-} satisfies scriptData.GenericMappings;
 
-function asString(value: JsonValue | undefined) {
-  return typeof value === 'string' ? value : undefined;
-}
 
-function asNumber(value: JsonValue | undefined) {
-  return typeof value === 'number' ? value : undefined;
-}
 
-function toAbsoluteUrl(path: JsonValue | undefined) {
-  return typeof path === 'string' ? new URL(path, BASE_URL).toString() : undefined;
-}
 
-function microToPrice(value: JsonValue | undefined) {
-  return typeof value === 'number' ? value / 1_000_000 : 0;
-}
 
-function isFreePrice(value: JsonValue | undefined) {
-  return value === 0;
-}
 
-export async function list(opts: ListOptions) {
-  const fullListOpts = Object.assign({ lang: 'en', country: 'us', num: 500 }, opts);
+
+export async function list(opts: ListOptions): Promise<AppListItem[] | AppDetails[]> {
+  const fullListOpts = { ...opts, lang: opts.lang ?? 'en', country: opts.country ?? 'us', num: opts.num ?? 500 };
 
   const categoryValues = Object.values(constants.category) as string[];
   const collectionValues = Object.values(constants.collection) as string[];
@@ -97,7 +74,7 @@ export async function list(opts: ListOptions) {
   }
 
   const url = buildInitialUrl(fullListOpts);
-  const headers = { 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8' };
+  const headers = { 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8', ...fullListOpts.requestOptions?.headers };
   let html: string;
   try {
     const dynBody = buildDynamicBody({ num: fullListOpts.num!, collection: clusterName, category });
@@ -122,22 +99,13 @@ export async function list(opts: ListOptions) {
 
   const appsPath = [0, 1, 0, 28, 0] as const;
   const appsSection = scriptData.getPathValue(data, appsPath);
-  const mapApp = scriptData.extractor<AppListItem>(APPS_MAPPINGS);
+  const mapApp = scriptData.extractor<AppListItem>(cardMappings([0]));
   const processedApps = Array.isArray(appsSection) ? appsSection.map((entry) => mapApp(entry)) : [];
 
   if (fullListOpts.fullDetail) {
-    const { app } = await import('./app');
-    return Promise.all(
-      processedApps
-        .filter((item): item is AppListItem & { appId: string } => typeof item.appId === 'string')
-        .map((item) => app({ appId: item.appId, lang: fullListOpts.lang!, country: fullListOpts.country! }))
-    );
+    return fetchFullDetails(processedApps, fullListOpts, app);
   }
-  const fetchDetails = async ({ appId, lang, country }: { appId: string; lang: string; country: string }) => {
-    const { app } = await import('./app');
-    return app({ appId, lang, country });
-  };
-  return hydrateMissingSummaries(processedApps, { lang: fullListOpts.lang!, country: fullListOpts.country! }, fetchDetails);
+  return hydrateMissingSummaries(processedApps, fullListOpts, app);
 }
 
 function parseBatchexecute(html: string): JsonValue | null {

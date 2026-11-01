@@ -16,7 +16,7 @@ describe('modules/permissions', () => {
 
     const scope = nock(BASE_URL).post(/\/batchexecute/).reply(200, body);
     const res = await permissions({ appId: 'com.test', short: true });
-    expect(Array.isArray(res)).to.equal(true);
+    expect(res).to.deep.equal(['CAMERA', 'LOCATION']);
     scope.done();
   });
 
@@ -29,7 +29,24 @@ describe('modules/permissions', () => {
     const body = ")]}'\n" + JSON.stringify(input);
     const scope = nock(BASE_URL).post(/\/batchexecute/).reply(200, body);
     const res = await permissions({ appId: 'com.test', short: false });
-    expect(Array.isArray(res)).to.equal(true);
+    expect(res).to.deep.equal([
+      { permission: 'CAMERA', type: 'COMMON' },
+      { permission: 'LOCATION', type: 'COMMON' },
+    ]);
+    scope.done();
+  });
+
+  it('returns an empty list when the response has an unexpected shape', async () => {
+    const scope = nock(BASE_URL).post(/\/batchexecute/).reply(200, ")]}'\n[]");
+    expect(await permissions({ appId: 'com.test' })).to.deep.equal([]);
+    scope.done();
+  });
+
+  it('sends the appId as JSON in the request body', async () => {
+    let fReq;
+    const scope = nock(BASE_URL).post(/\/batchexecute/, (b) => { fReq = b['f.req']; return true; }).reply(200, ")]}'\n[]");
+    await permissions({ appId: 'com.test' });
+    expect(JSON.parse(JSON.parse(fReq)[0][0][1])).to.deep.equal([[null, ['com.test', 7], []]]);
     scope.done();
   });
 });

@@ -14,7 +14,7 @@ describe('modules/similar live fixture (optional)', () => {
     const lang = process.env.FIXTURE_LANG || 'en';
     const country = process.env.FIXTURE_COUNTRY || 'us';
     const base = `${appId}.${lang}-${country}`;
-    const dir = path.join(__dirname, '..', 'fixtures', 'similar');
+    const dir = path.join(__dirname, 'fixtures', 'similar');
     const detailsPath = path.join(dir, `${base}.details.html`);
     const clusterPath = path.join(dir, `${base}.cluster.html`);
     if (!fs.existsSync(detailsPath)) return this.skip();

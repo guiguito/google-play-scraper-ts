@@ -2,9 +2,9 @@ import { BASE_URL } from '../constants';
 import { request } from '../http/client';
 import * as scriptData from '../utils/scriptData';
 import helper from '../utils/mappingHelpers';
-import { hydrateMissingSummaries } from '../utils/hydrateMissingSummaries';
-import type { JsonValue } from '../types';
-import type { AppListItem } from '../utils/appList';
+import { fetchFullDetails, hydrateMissingSummaries } from '../utils/hydrateMissingSummaries';
+import type { AppDetails, JsonValue } from '../types';
+import { asNumber, asString, toAbsoluteUrl, type AppListItem } from '../utils/appList';
 import type { AppOptions } from './app';
 
 function getPriceGoogleValue(value: string) {
@@ -27,27 +27,21 @@ interface SearchState {
   fullDetail?: boolean;
   price: number;
   requestOptions?: { headers?: Record<string, string> };
-}
-
-function asString(value: JsonValue | undefined) {
-  return typeof value === 'string' ? value : undefined;
-}
-
-function asNumber(value: JsonValue | undefined) {
-  return typeof value === 'number' ? value : undefined;
+  backfillSummaries?: boolean;
 }
 
 function normalizeSearchOptions(opts: SearchOptions): SearchState {
   if (!opts || !opts.term) throw new Error('Search term missing');
-  if (opts.num && opts.num > 250) throw new Error("The number of results can't exceed 250");
+  if (opts.num !== undefined && (opts.num < 0 || opts.num > 250)) throw new Error('num must be between 0 and 250');
   return {
     term: encodeURIComponent(opts.term),
     lang: opts.lang || 'en',
     country: opts.country || 'us',
-    num: opts.num || 20,
+    num: opts.num ?? 20,
     fullDetail: opts.fullDetail,
     price: opts.price ? getPriceGoogleValue(opts.price) : 0,
     requestOptions: opts.requestOptions,
+    backfillSummaries: opts.backfillSummaries,
   };
 }
 
@@ -59,15 +53,6 @@ function extractAppIdFromUrl(urlPath: string | undefined): string | undefined {
   } catch {
     const match = urlPath.match(/[?&]id=([^&]+)/);
     return match ? decodeURIComponent(match[1]) : undefined;
-  }
-}
-
-function toAbsoluteUrl(path: string | undefined): string | undefined {
-  if (!path) return undefined;
-  try {
-    return new URL(path, BASE_URL).toString();
-  } catch {
-    return undefined;
   }
 }
 
@@ -170,22 +155,10 @@ function extractStoreResults(parsed: JsonValue): AppListItem[] {
 }
 
 async function initialStoreRequest(opts: SearchState) {
-  const url = `${BASE_URL}/store/search?q=${opts.term}&hl=${opts.lang}&gl=${opts.country}&price=${opts.price}&c=apps`;
+  const url = `${BASE_URL}/store/search?q=${opts.term}&hl=${encodeURIComponent(opts.lang)}&gl=${encodeURIComponent(opts.country)}&price=${opts.price}&c=apps`;
   const html = await request({ url, method: 'GET', headers: opts.requestOptions?.headers, country: opts.country });
   // ponytail: Play serves every result (30) on this page with no continuation token, so there is nothing to page.
   return extractStoreResults(scriptData.parse(html)).slice(0, opts.num);
-}
-
-async function fetchFullDetailResults<R>(
-  appFetcher: (args: AppOptions) => Promise<R>,
-  apps: AppListItem[],
-  state: SearchState
-): Promise<R[]> {
-  return Promise.all(
-    apps
-      .filter((item): item is AppListItem & { appId: string } => typeof item.appId === 'string' && item.appId.length > 0)
-      .map((item) => appFetcher({ appId: item.appId, lang: state.lang, country: state.country }))
-  );
 }
 
 export interface SearchOptions {
@@ -195,17 +168,20 @@ export interface SearchOptions {
   num?: number;
   fullDetail?: boolean;
   price?: 'all' | 'free' | 'paid';
+  /** Extra HTTP headers for every request this call makes (including app() fan-outs). */
   requestOptions?: { headers?: Record<string, string> };
+  /** Set to false to skip the extra app() request per entry that lacks a summary. Default true. */
+  backfillSummaries?: boolean;
 }
 
 export async function search(
-  appFetcher: (args: AppOptions) => Promise<unknown>,
+  appFetcher: (args: AppOptions) => Promise<AppDetails>,
   opts: SearchOptions
-) {
+): Promise<AppListItem[] | AppDetails[]> {
   const state = normalizeSearchOptions(opts);
   const results = await initialStoreRequest(state);
-  if (state.fullDetail) return fetchFullDetailResults(appFetcher, results, state);
-  return hydrateMissingSummaries(results, { lang: state.lang, country: state.country }, appFetcher);
+  if (state.fullDetail) return fetchFullDetails(results, state, appFetcher);
+  return hydrateMissingSummaries(results, state, appFetcher);
 }
 
 export default search;

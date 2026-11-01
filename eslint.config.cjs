@@ -11,7 +11,7 @@ module.exports = [
       'coverage/**',
       'reference/**',
       'doc/**',
-      'examples/**',
+      'docs/**',
       'node_modules/**',
       'eslint.config.cjs'
     ]
@@ -44,7 +44,9 @@ module.exports = [
       'no-unused-vars': 'off',
       '@typescript-eslint/no-unused-vars': 'off',
       'no-empty': 'off',
-      'no-useless-escape': 'off'
+      'no-useless-escape': 'off',
+      // TS overloads look like redeclarations to the core rule; tsc catches real ones.
+      'no-redeclare': 'off'
     }
   },
   {
@@ -86,7 +88,7 @@ module.exports = [
     }
   },
   {
-    files: ['tests/**/*.js', 'tests/**/*.ts'],
+    files: ['tests/**/*.js', 'tests/**/*.ts', 'tests/**/*.mts', 'examples/**/*.mts'],
     languageOptions: {
       ecmaVersion: 'latest',
       sourceType: 'module',
@@ -99,7 +101,8 @@ module.exports = [
         process: 'readonly',
         URL: 'readonly',
         fetch: 'readonly',
-        setTimeout: 'readonly'
+        setTimeout: 'readonly',
+        console: 'readonly'
       }
     },
     plugins: { '@typescript-eslint': tsPlugin },
