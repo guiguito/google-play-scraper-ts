@@ -23,6 +23,7 @@ function stubRequests(responses) {
     const res = new EventEmitter();
     res.statusCode = current.statusCode;
     res.statusMessage = current.statusMessage ?? '';
+    res.headers = current.headers ?? {};
 
     process.nextTick(() => {
       callback(res);
@@ -67,6 +68,18 @@ describe('http/client request', () => {
     ]);
     const res = await request({ url: 'http://retry.test/' }, { retries: 1, backoffMs: 0 });
     expect(res).to.equal('ok');
+    restore();
+  });
+
+  it('retries 429 responses after the Retry-After delay', async () => {
+    const restore = stubRequests([
+      { statusCode: 429, body: 'slow down', headers: { 'retry-after': '0.05' } },
+      { statusCode: 200, body: 'ok' },
+    ]);
+    const started = Date.now();
+    const body = await request({ url: 'http://rate.test/' }, { retries: 1, backoffMs: 1 });
+    expect(body).to.equal('ok');
+    expect(Date.now() - started).to.be.at.least(45);
     restore();
   });
 

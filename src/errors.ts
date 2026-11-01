@@ -1,6 +1,8 @@
 export class HttpError extends Error {
   status?: number;
   body?: string;
+  /** Delay requested by the server's Retry-After header, if any. */
+  retryAfterMs?: number;
   constructor(message: string, status?: number, body?: string) {
     super(message);
     this.name = 'HttpError';

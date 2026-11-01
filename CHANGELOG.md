@@ -25,6 +25,7 @@ The format is based on Keep a Changelog, and this project adheres to Semantic Ve
 - `lang`/`country` are URL-encoded; `similar()` no longer double-encodes `appId`; `permissions()` returns `[]` on an unexpected payload.
 - `reviews()` pagination tokens no longer skip reviews; `developer()` honours `fullDetail`; `developerLegalAddress` and data safety fields read Play's current layout; `categories()` returns the known list without a request; `search()` drops a redundant request.
 ### Changed
+- 429 (rate limited) responses are retried like 5xx, honouring `Retry-After` (capped at 60 s); `HttpError.retryAfterMs` exposes the requested delay.
 - `fullDetail` results leave out apps whose detail page returns 404 instead of rejecting the whole call.
 - `memoized()` shares one request between concurrent identical calls, no longer caches failures, and keys by method name.
 ### Added

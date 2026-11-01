@@ -402,7 +402,7 @@ The enums are available as the named export `constants` (and spread at the top l
 
 ## Retries & throttling
 
-- **Retries** – The internal HTTP client retries network errors and 5xx responses twice with exponential backoff (300 ms, 600 ms).
+- **Retries** – The internal HTTP client retries network errors, 5xx and 429 (rate limited) responses twice with exponential backoff (300 ms, 600 ms), waiting longer when Play sends a `Retry-After` header (capped at 60 s).
 - **Timeouts** – Requests time out after 30 s of socket inactivity, then count as a retriable network error.
 - **Concurrency** – At most 5 requests are open at once across the process; extra requests (e.g. `fullDetail` fan-outs) wait for a free slot.
 - **Summary backfill** – When a list/search/developer/similar result lacks a summary, one `app()` call is made per such entry to fill it in; failures are ignored.

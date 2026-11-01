@@ -64,7 +64,18 @@ type ExecutionOptions = {
 
 function sleep(ms: number): Promise<void> { return new Promise((r) => setTimeout(r, ms)); }
 
-function isRetriableStatus(status?: number): boolean { return status !== undefined && status >= 500 && status < 600; }
+// 429 = Play rate limiting; retried after Retry-After (or the normal backoff), like 5xx.
+function isRetriableStatus(status?: number): boolean { return status !== undefined && (status === 429 || (status >= 500 && status < 600)); }
+
+const MAX_RETRY_AFTER_MS = 60_000;
+
+function retryAfterMs(header: string | string[] | undefined): number | undefined {
+  const value = Array.isArray(header) ? header[0] : header;
+  if (!value) return undefined;
+  const seconds = Number(value);
+  const ms = Number.isFinite(seconds) ? seconds * 1000 : Date.parse(value) - Date.now();
+  return Number.isFinite(ms) && ms > 0 ? Math.min(ms, MAX_RETRY_AFTER_MS) : undefined;
+}
 
 function deriveCountry(explicit: string | undefined, url: NodeURL): string | undefined {
   if (explicit) return explicit;
@@ -100,9 +111,9 @@ export async function request(
       const shouldRetry = attempt < retry.retries && (status === undefined || isRetriableStatus(status));
       if (!shouldRetry) break;
 
-      const backoff = Math.min(
-        retry.maxBackoffMs ?? Number.MAX_SAFE_INTEGER,
-        retry.backoffMs * Math.pow(2, attempt)
+      const backoff = Math.max(
+        Math.min(retry.maxBackoffMs ?? Number.MAX_SAFE_INTEGER, retry.backoffMs * Math.pow(2, attempt)),
+        error instanceof HttpError ? error.retryAfterMs ?? 0 : 0
       );
       await sleep(backoff);
       attempt += 1;
@@ -268,7 +279,9 @@ function consumeResponse(
     }
     const message = res.statusMessage ? ` ${res.statusMessage}` : '';
     const msg = `Request failed: ${status}${message}`;
-    reject(status === 404 ? new NotFoundError(msg, body) : new HttpError(msg, status, body));
+    const error = status === 404 ? new NotFoundError(msg, body) : new HttpError(msg, status, body);
+    error.retryAfterMs = retryAfterMs(res.headers['retry-after']);
+    reject(error);
   });
 }
 
