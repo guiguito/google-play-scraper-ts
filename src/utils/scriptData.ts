@@ -27,7 +27,10 @@ export function getPathValue(source: JsonValue, path: Path): JsonValue | undefin
     if (current == null) return undefined;
     if (typeof key === 'number') {
       if (Array.isArray(current)) {
-        current = current[key];
+        const last: JsonValue | undefined = current[current.length - 1];
+        // Play's JSPB serializer may move trailing fields into a final object keyed by field number (= index + 1).
+        // ponytail: only out-of-range indexes fall back, so an index landing exactly on that object still returns the object.
+        current = key >= current.length && isJsonObject(last) ? last[String(key + 1)] : current[key];
       } else if (isJsonObject(current)) {
         // Ramda's path treats numeric keys as property names on objects too.
         current = (current as JsonObject)[String(key) as keyof JsonObject];

@@ -93,4 +93,33 @@ describe('modules/datasafety', () => {
     expect(res.sharedData[0].purpose).to.equal(null);
     scope.done();
   });
+
+  // Live layout since 2026: ds:3[1][2] = [<field 1>, { "100": ..., "138": ... }] instead of a plain array.
+  it('parses the sparse-encoded layout Play serves now', async () => {
+    const dataEntry = [];
+    dataEntry[0] = [null, 'Personal info'];
+    dataEntry[4] = [['Email address', false, 'Account management']];
+    const section = [];
+    section[4] = [[[dataEntry]], [[dataEntry]]];
+    section[9] = [null, null, [[null, 'Data is encrypted in transit', [null, 'Your data is transferred over a secure connection']]]];
+    const policy = [];
+    policy[0] = [];
+    policy[0][5] = [null, null, 'https://privacy'];
+    const ds3 = [null, [null, null, [[null, 'App'], { 100: policy, 138: section }]]];
+
+    const html = `<script>AF_initDataCallback({key: 'ds:3', data: ${JSON.stringify(ds3)}, sideChannel: {}});</script>`;
+    const scope = nock(BASE_URL)
+      .get((uri) => uri.startsWith('/store/apps/datasafety'))
+      .reply(200, html, { 'Content-Type': 'text/html' });
+
+    const res = await datasafety({ appId: 'com.sparse' });
+    const expected = [{ data: 'Email address', optional: false, purpose: 'Account management', type: 'Personal info' }];
+    expect(res.sharedData).to.deep.equal(expected);
+    expect(res.collectedData).to.deep.equal(expected);
+    expect(res.securityPractices).to.deep.equal([
+      { practice: 'Data is encrypted in transit', description: 'Your data is transferred over a secure connection' },
+    ]);
+    expect(res.privacyPolicyUrl).to.equal('https://privacy');
+    scope.done();
+  });
 });

@@ -1,5 +1,5 @@
 const { expect } = require('chai');
-const { parse, extractor } = require('../dist/cjs/utils/scriptData.js');
+const { parse, extractor, getPathValue } = require('../dist/cjs/utils/scriptData.js');
 
 describe('utils/scriptData', () => {
   it('parses AF_initDataCallback blocks and extracts values', () => {
@@ -15,6 +15,16 @@ describe('utils/scriptData', () => {
     const mappings = { value: ['ds:5', 2] };
     const res = extractor(mappings)(data);
     expect(res.value).to.equal(2);
+  });
+
+  // Play's JSPB serializer may move trailing fields into a final object keyed by field number (= index + 1).
+  it('reads array indexes that Play moved into a trailing sparse object', () => {
+    expect(getPathValue([null, { 138: ['x'] }], [137, 0])).to.equal('x');
+    expect(getPathValue([null, { 138: ['x'] }], [99])).to.equal(undefined);
+  });
+
+  it('keeps reading in-range elements of arrays that end with an object', () => {
+    expect(getPathValue([{ a: 1 }, { b: 2 }], [1])).to.deep.equal({ b: 2 });
   });
 });
 
