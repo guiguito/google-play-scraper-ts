@@ -11,6 +11,7 @@ module.exports = [
       'coverage/**',
       'reference/**',
       'doc/**',
+      'docs/**',
       'node_modules/**',
       'eslint.config.cjs'
     ]

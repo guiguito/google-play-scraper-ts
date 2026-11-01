@@ -252,6 +252,8 @@ Retrieve curated charts (Top Free, Top Paid, Grossing, …). Set `fullDetail` to
 | `country` | `string` | `'us'` | Region / storefront. |
 | `num` | `number` | `500` | Maximum entries (Play caps at ~500). |
 | `fullDetail` | `boolean` | `false` | When true, fetch each item with `app()`. |
+| `backfillSummaries` | `boolean` | `true` | Set to `false` to skip the extra `app()` request per entry that lacks a summary. |
+| `requestOptions` | `{ headers?: Record<string, string> }` | – | Extra HTTP headers for every request the call makes. |
 
 Returns an array of `AppSummary` entries, or `AppDetails` entries when `fullDetail` is enabled.
 
@@ -268,6 +270,7 @@ Search the Play Store catalogue.
 | `fullDetail` | `boolean` | `false` | When true, hydrate each match via `app()`. |
 | `price` | `'all' \| 'free' \| 'paid'` | `'all'` | Price filter. |
 | `requestOptions` | `{ headers?: Record<string, string> }` | – | Forwarded headers for the search request. |
+| `backfillSummaries` | `boolean` | `true` | Set to `false` to skip the extra `app()` request per entry that lacks a summary. |
 
 Results mirror the modern `/store/search` layout (including single-result pages). When `fullDetail` is enabled each result is re-fetched via `app()`.
 
@@ -295,6 +298,8 @@ List applications published by a developer profile.
 | `country` | `string` | `'us'` | Storefront country. |
 | `num` | `number` | `60` | Maximum apps to collect. |
 | `fullDetail` | `boolean` | `false` | Set to `true` for `AppDetails` results. |
+| `backfillSummaries` | `boolean` | `true` | Set to `false` to skip the extra `app()` request per entry that lacks a summary. |
+| `requestOptions` | `{ headers?: Record<string, string> }` | – | Extra HTTP headers for every request the call makes. |
 
 Returns developer listings as `AppSummary` entries, or full details when `fullDetail` is enabled.
 
@@ -311,6 +316,7 @@ Pull paginated user reviews for a given app.
 | `num` | `number` | `150` | Maximum reviews to gather before stopping. |
 | `paginate` | `boolean` | `false` | When `false`, auto-follow tokens until `num` reviews or exhaust data. |
 | `nextPaginationToken` | `string \| null` | `null` | Pass a token from a previous response to resume manually. |
+| `requestOptions` | `{ headers?: Record<string, string> }` | – | Extra HTTP headers for every request the call makes. |
 
 When `paginate` is `true`, the method fetches a single page and returns the next token (if any). The `data` array contains `Review` entries.
 
@@ -324,6 +330,8 @@ Retrieve apps from the “Similar” / “Related” clusters for a given listin
 | `lang` | `string` | `'en'` | Metadata language. |
 | `country` | `string` | `'us'` | Storefront country. |
 | `fullDetail` | `boolean` | `false` | Hydrate each result via `app()` when `true`. |
+| `backfillSummaries` | `boolean` | `true` | Set to `false` to skip the extra `app()` request per entry that lacks a summary. |
+| `requestOptions` | `{ headers?: Record<string, string> }` | – | Extra HTTP headers for every request the call makes. |
 
 Returns up to ~60 related apps as `AppSummary` or `AppDetails` entries.
 
@@ -337,6 +345,7 @@ Inspect runtime permissions declared in the Play listing.
 | `short` | `boolean` | `false` | When `true`, return a flat list of permission strings. Otherwise return `PermissionItem` objects grouped by type. |
 | `lang` | `string` | `'en'` | Language for permission descriptions (when available). |
 | `country` | `string` | `'us'` | Storefront country. |
+| `requestOptions` | `{ headers?: Record<string, string> }` | – | Extra HTTP headers for every request the call makes. |
 
 ### `datasafety(options): Promise<{ sharedData: DataSafetyItem[]; collectedData: DataSafetyItem[]; securityPractices: Array<{ practice?: string; description?: string }>; privacyPolicyUrl?: string }>`
 
@@ -347,6 +356,7 @@ Fetch the Google Play “Data safety” disclosure for an app.
 | `appId` | `string` | – | Target package identifier. |
 | `lang` | `string` | `'en'` | Disclosure language. |
 | `country` | `string` | – | Only used to pick a per-country proxy. |
+| `requestOptions` | `{ headers?: Record<string, string> }` | – | Extra HTTP headers for every request the call makes. |
 
 The result contains separate `sharedData` and `collectedData` arrays of `DataSafetyItem`s, a list of high-level `securityPractices`, and an optional `privacyPolicyUrl`.
 
@@ -417,13 +427,14 @@ The enums are available as the named export `constants` (and spread at the top l
 
 ```bash
 npm run lint
-LIVE=1 npm test    # only needed when you want to exercise live tests (default suite uses fixtures)
-npm run test        # builds both ESM and CJS bundles before running mocha
+npm test            # builds ESM + CJS, then runs the offline suite
+npm run test:live   # live smoke tests against the real Play Store (also run weekly in CI)
+npm run test:coverage
 npm run docs        # generates TypeDoc output in /docs
 npm run verify:types
 ```
 
-> By default the test suite blocks outbound HTTP requests. Set `LIVE=1` to allow network calls when you want to run ad-hoc live checks.
+> The default suite blocks outbound HTTP requests; `npm run test:live` sets `LIVE=1` to allow them.
 
 ### Manual UI testing playground
 

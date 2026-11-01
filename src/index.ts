@@ -26,6 +26,8 @@ export type {
   DataSafety,
   DataSafetyItem,
   FullDetailFn,
+  JsonValue,
+  JsonPrimitive,
 } from './types';
 export type { AppOptions } from './modules/app';
 export type { ListOptions, DeveloperOptions, SimilarOptions, SearchOptions };
@@ -34,7 +36,7 @@ export type { ReviewsOptions } from './modules/reviews';
 export type { PermissionsOptions } from './modules/permissions';
 export type { DataSafetyOptions } from './modules/datasafety';
 
-type MemoizeOptions = {
+export type MemoizeOptions = {
   maxAge?: number;
   max?: number;
 };
@@ -60,6 +62,7 @@ export type {
   ProxyConfig,
   ProxyUrlDefinition,
   ProxyDefinition,
+  ProxyAuth,
 } from './http/proxyConfig';
 
 export interface CreatePlayStoreApiOptions {
