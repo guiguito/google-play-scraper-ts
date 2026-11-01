@@ -57,7 +57,10 @@ export interface AppDetails {
   developerLegalAddress?: string;
   developerLegalPhoneNumber?: string;
   privacyPolicy?: string;
+  /** Release date as Play's localized text (e.g. 'May 27, 2014', or '27 mai 2014' with `lang: 'fr'`). */
   released?: string;
+  /** Release date in ms since epoch; same clock as `updated`. */
+  releasedTimestamp?: number;
   updated?: number;
   version: string;
   androidVersion: string;

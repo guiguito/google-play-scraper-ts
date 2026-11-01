@@ -44,6 +44,8 @@ describe('modules/app', () => {
     setPath(details, [1, 2, 78, 0], [screenshot]);
     setPath(details, [1, 2, 18, 0], 1);
     setPath(details, [1, 2, 62], 'playpass');
+    setPath(details, [1, 2, 68, 1, 4, 2], '/store/apps/developer?id=Test+Dev');
+    setPath(details, [1, 2, 10], ['27 mai 2014', [1401196337, 255000000]]);
 
     const html = `<!doctype html><html><body>
       <script>AF_initDataCallback({key: 'ds:5', data: ${JSON.stringify(details)}, sideChannel: {}});</script>
@@ -57,6 +59,11 @@ describe('modules/app', () => {
 
     expect(result.title).to.equal('Test App');
     expect(result.developer).to.equal('Test Dev');
+    // Decoded, so it can be passed straight to developer({ devId }) (the raw 'Test+Dev' 404s there).
+    expect(result.developerId).to.equal('Test Dev');
+    expect(result.developerInternalID).to.equal('Test Dev');
+    expect(result.released).to.equal('27 mai 2014');
+    expect(result.releasedTimestamp).to.equal(1401196337000);
     expect(result.icon).to.equal('https://cdn.example/icon.png');
     expect(result.developerLegalAddress).to.equal('123 Main St, City');
     expect(result.screenshots).to.deep.equal(['https://cdn.example/screen.png']);

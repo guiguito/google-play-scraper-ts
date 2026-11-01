@@ -3,7 +3,7 @@ import { extractor, parse, type GenericMappings } from '../utils/scriptData';
 import helper from '../utils/mappingHelpers';
 import { request } from '../http/client';
 import type { AppDetails, JsonValue } from '../types';
-import { asString } from '../utils/appList';
+import { asString, idFromUrl } from '../utils/appList';
 
 export interface AppOptions {
   appId: string;
@@ -92,7 +92,7 @@ const MAPPINGS: GenericMappings = {
   developer: ['ds:5', 1, 2, 68, 0],
   developerId: {
     path: ['ds:5', 1, 2, 68, 1, 4, 2],
-    fun: (devUrl) => (typeof devUrl === 'string' ? devUrl.split('id=')[1] : undefined),
+    fun: idFromUrl,
   },
   developerEmail: ['ds:5', 1, 2, 69, 1, 0],
   developerWebsite: ['ds:5', 1, 2, 69, 0, 5, 2],
@@ -116,7 +116,7 @@ const MAPPINGS: GenericMappings = {
   privacyPolicy: ['ds:5', 1, 2, 99, 0, 5, 2],
   developerInternalID: {
     path: ['ds:5', 1, 2, 68, 1, 4, 2],
-    fun: (devUrl) => (typeof devUrl === 'string' ? devUrl.split('id=')[1] : undefined),
+    fun: idFromUrl,
   },
   genre: ['ds:5', 1, 2, 79, 0, 0, 0],
   genreId: ['ds:5', 1, 2, 79, 0, 0, 2],
@@ -161,6 +161,7 @@ const MAPPINGS: GenericMappings = {
   contentRatingDescription: ['ds:5', 1, 2, 9, 2, 1],
   adSupported: { path: ['ds:5', 1, 2, 48], fun: Boolean },
   released: ['ds:5', 1, 2, 10, 0],
+  releasedTimestamp: { path: ['ds:5', 1, 2, 10, 1, 0], fun: (ts) => (typeof ts === 'number' ? ts * 1000 : undefined) },
   updated: { path: ['ds:5', 1, 2, 145, 0, 1, 0], fun: (ts) => (typeof ts === 'number' ? ts * 1000 : undefined) },
   version: { path: ['ds:5', 1, 2, 140, 0, 0, 0], fun: (val) => (typeof val === 'string' && val ? val : 'VARY') },
   recentChanges: ['ds:5', 1, 2, 144, 1, 1],

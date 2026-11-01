@@ -19,6 +19,8 @@ const nonEmpty = (v) => typeof v === 'string' && v.trim().length > 0;
     expect(app.installs).to.satisfy(nonEmpty);
     expect(app.score).to.be.a('number');
     expect(app.version).to.satisfy(nonEmpty);
+    expect(app.releasedTimestamp).to.be.a('number');
+    expect(app.developerId).to.equal('Spotify AB');
   });
 
   it('list', async () => {

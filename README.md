@@ -143,7 +143,7 @@ All result types are exported: `import type { AppDetails, AppSummary, Review, Pe
 | Field | Type | Description |
 | --- | --- | --- |
 | `developer` | `string \| undefined` | Developer display name. |
-| `developerId` | `string \| undefined` | Developer identifier extracted from profile link. |
+| `developerId` | `string \| undefined` | Developer identifier from the profile link; pass it to `developer({ devId })`. |
 | `developerInternalID` | `string \| undefined` | Internal developer ID used by Play. |
 | `developerEmail` | `string \| undefined` | Contact email. |
 | `developerWebsite` | `string \| undefined` | Website URL. |
@@ -158,7 +158,8 @@ All result types are exported: `import type { AppDetails, AppSummary, Review, Pe
 
 | Field | Type | Description |
 | --- | --- | --- |
-| `released` | `string \| undefined` | Store-published release date text. |
+| `released` | `string \| undefined` | Release date as Play's text, localized by `lang` (`'May 27, 2014'`, `'27 mai 2014'`). |
+| `releasedTimestamp` | `number \| undefined` | Release date in ms since epoch (use this to parse or compare). |
 | `updated` | `number \| undefined` | Last update timestamp in ms since epoch. |
 | `version` | `string` | Latest version string (falls back to `'VARY'`). |
 | `androidVersion` | `string` | Minimum Android version, normalised (e.g. `'5.0'` or `'VARY'`). |
@@ -182,7 +183,7 @@ Returned by list, search, developer and similar methods when `fullDetail` is `fa
 | `url` | `string \| undefined` | Absolute Play Store URL. |
 | `icon` | `string \| undefined` | Icon URL. |
 | `developer` | `string \| undefined` | Developer display name. |
-| `developerId` | `string \| undefined` | Developer profile identifier (when exposed). |
+| `developerId` | `string \| undefined` | Only on `search()`'s top result: Play's list cards don't carry it. Use `fullDetail: true` to get it on every entry. |
 | `summary` | `string \| undefined` | Short synopsis. |
 | `price` | `number \| undefined` | Current price in the store currency (`0` for free apps). |
 | `priceText` | `string \| undefined` | Price label (`'FREE'`, `'$0.99'`, …). |
