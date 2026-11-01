@@ -4,11 +4,14 @@ All notable changes to this project will be documented in this file.
 
 The format is based on Keep a Changelog, and this project adheres to Semantic Versioning.
 
+## [Unreleased]
+### Breaking
+- `search()` `num` is limited to 30 (was 250) and throws above it: Play serves at most 30 results per query, with no further pages.
+
 ## [0.4.0] - 2026-11-01
 ### Breaking
 - Node.js 20.18.1 or newer is required (cheerio's bundled undici crashes on older versions).
 - `searchGlobal()` was removed; `search()` uses `/store/search` only.
-- `search()` `num` is limited to 30 (was 250) and throws above it: Play serves at most 30 results per query, with no further pages.
 - `list()` options `collection`, `category` and `age` are typed as the `constants` values (`age` was wrongly typed with the key names).
 - `datasafety()` items now normalise `optional` to `boolean | null` and `purpose` to `string | null`.
 - `PermissionItem.type` is the permission group label string (it was never `0 | 1`).
