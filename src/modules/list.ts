@@ -4,7 +4,7 @@ import { HttpError } from '../errors';
 import * as scriptData from '../utils/scriptData';
 import helper from '../utils/mappingHelpers';
 import { hydrateMissingSummaries } from '../utils/hydrateMissingSummaries';
-import type { JsonValue } from '../types';
+import type { AppDetails, JsonValue } from '../types';
 import type { AppListItem } from '../utils/appList';
 
 const CLUSTER_NAMES: Record<string, string> = {
@@ -33,9 +33,9 @@ function buildInitialUrl(opts: { lang: string; country: string; age?: string }) 
 }
 
 export interface ListOptions {
-  collection?: keyof typeof constants.collection;
-  category?: keyof typeof constants.category | string;
-  age?: keyof typeof constants.age | string;
+  collection?: (typeof constants.collection)[keyof typeof constants.collection];
+  category?: (typeof constants.category)[keyof typeof constants.category];
+  age?: (typeof constants.age)[keyof typeof constants.age];
   lang?: string;
   country?: string;
   num?: number;
@@ -76,7 +76,7 @@ function isFreePrice(value: JsonValue | undefined) {
   return value === 0;
 }
 
-export async function list(opts: ListOptions) {
+export async function list(opts: ListOptions): Promise<AppListItem[] | AppDetails[]> {
   const fullListOpts = { ...opts, lang: opts.lang ?? 'en', country: opts.country ?? 'us', num: opts.num ?? 500 };
 
   const categoryValues = Object.values(constants.category) as string[];

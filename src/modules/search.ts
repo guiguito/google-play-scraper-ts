@@ -3,7 +3,7 @@ import { request } from '../http/client';
 import * as scriptData from '../utils/scriptData';
 import helper from '../utils/mappingHelpers';
 import { hydrateMissingSummaries } from '../utils/hydrateMissingSummaries';
-import type { JsonValue } from '../types';
+import type { AppDetails, JsonValue } from '../types';
 import type { AppListItem } from '../utils/appList';
 import type { AppOptions } from './app';
 
@@ -199,9 +199,9 @@ export interface SearchOptions {
 }
 
 export async function search(
-  appFetcher: (args: AppOptions) => Promise<unknown>,
+  appFetcher: (args: AppOptions) => Promise<AppDetails>,
   opts: SearchOptions
-) {
+): Promise<AppListItem[] | AppDetails[]> {
   const state = normalizeSearchOptions(opts);
   const results = await initialStoreRequest(state);
   if (state.fullDetail) return fetchFullDetailResults(appFetcher, results, state);

@@ -2,7 +2,7 @@ import { BASE_URL } from '../constants';
 import { extractor, type GenericMappings } from '../utils/scriptData';
 import helper from '../utils/mappingHelpers';
 import { request } from '../http/client';
-import type { JsonValue } from '../types';
+import type { AppDetails, JsonValue } from '../types';
 
 export interface AppOptions {
   appId: string;
@@ -11,7 +11,7 @@ export interface AppOptions {
   requestOptions?: { headers?: Record<string, string> };
 }
 
-export async function app(opts: AppOptions) {
+export async function app(opts: AppOptions): Promise<AppDetails> {
   if (!opts || !opts.appId) {
     throw new Error('appId missing');
   }
@@ -23,7 +23,7 @@ export async function app(opts: AppOptions) {
   const html = await request({ url: reqUrl, method: 'GET', headers: opts.requestOptions?.headers, country });
   const parse = (await import('../utils/scriptData')).default.parse; // avoid cycle
   const data = parse(html);
-  const mapped = extractor(MAPPINGS)(data);
+  const mapped = extractor<Omit<AppDetails, 'appId' | 'url'>>(MAPPINGS)(data);
   return {
     ...mapped,
     appId: opts.appId,

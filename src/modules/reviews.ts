@@ -1,28 +1,12 @@
 import { BASE_URL, constants } from '../constants';
 import { request } from '../http/client';
 import * as scriptData from '../utils/scriptData';
-import type { JsonValue } from '../types';
+import type { JsonValue, Review } from '../types';
 
 const REQUEST_TYPE = { initial: 'initial', paginated: 'paginated' } as const;
 
 type RequestTypeKey = keyof typeof REQUEST_TYPE;
 
-type ReviewEntry = {
-  id?: JsonValue;
-  userName?: JsonValue;
-  userImage?: JsonValue;
-  date?: string | null;
-  score?: JsonValue;
-  scoreText?: JsonValue;
-  url?: JsonValue;
-  title?: JsonValue;
-  text?: JsonValue;
-  replyDate?: string | null;
-  replyText?: string | null;
-  version?: string | null;
-  thumbsUp?: JsonValue;
-  criterias?: Array<{ criteria: JsonValue; rating: JsonValue }>;
-};
 
 function getBodyForRequests({ appId, sort, numberOfReviewsPerRequest = 150, withToken = '%token%', requestType = REQUEST_TYPE.initial }: {
   appId: string;
@@ -74,7 +58,7 @@ function getReviewsMappings(appId: string) {
   } satisfies scriptData.GenericMappings;
 }
 
-function normalizeReview(raw: Record<string, JsonValue | undefined>): ReviewEntry {
+function normalizeReview(raw: Record<string, JsonValue | undefined>): Review {
   const criteriasValue = raw.criterias;
   const criterias = Array.isArray(criteriasValue)
     ? criteriasValue.map((entry) => {
@@ -85,33 +69,35 @@ function normalizeReview(raw: Record<string, JsonValue | undefined>): ReviewEntr
         return { criteria: obj.criteria ?? null, rating: obj.rating ?? null };
       })
     : undefined;
+  const str = (v: JsonValue | undefined) => (typeof v === 'string' ? v : undefined);
+  const num = (v: JsonValue | undefined) => (typeof v === 'number' ? v : undefined);
   return {
-    id: raw.id,
-    userName: raw.userName,
-    userImage: raw.userImage,
+    id: str(raw.id),
+    userName: str(raw.userName),
+    userImage: str(raw.userImage),
     date: typeof raw.date === 'string' ? raw.date : null,
-    score: raw.score,
-    scoreText: raw.scoreText,
-    url: raw.url,
-    title: raw.title,
-    text: raw.text,
+    score: num(raw.score),
+    scoreText: typeof raw.scoreText === 'string' ? raw.scoreText : null,
+    url: str(raw.url),
+    title: null,
+    text: str(raw.text),
     replyDate: typeof raw.replyDate === 'string' ? raw.replyDate : null,
     replyText: typeof raw.replyText === 'string' ? raw.replyText : null,
     version: typeof raw.version === 'string' ? raw.version : null,
-    thumbsUp: raw.thumbsUp,
+    thumbsUp: num(raw.thumbsUp),
     criterias,
   };
 }
 
 function extract(root: ReadonlyArray<string | number>, data: JsonValue, appId: string) {
   const input = scriptData.getPathValue(data, root);
-  if (!Array.isArray(input)) return [] as ReviewEntry[];
+  if (!Array.isArray(input)) return [] as Review[];
   const mappings = getReviewsMappings(appId);
   const mapReview = scriptData.extractor<Record<string, JsonValue | undefined>>(mappings);
   return input.map((entry) => normalizeReview(mapReview(entry)));
 }
 
-function formatReviewsResponse({ reviews, num, token = null }: { reviews: ReviewEntry[]; num: number; token?: string | null }) {
+function formatReviewsResponse({ reviews, num, token = null }: { reviews: Review[]; num: number; token?: string | null }) {
   const reviewsToResponse = reviews.length >= num ? reviews.slice(0, num) : reviews;
   return { data: reviewsToResponse, nextPaginationToken: token };
 }
@@ -119,8 +105,8 @@ function formatReviewsResponse({ reviews, num, token = null }: { reviews: Review
 async function processReviewsAndGetNextPage(
   html: JsonValue,
   opts: { appId: string; num: number; paginate?: boolean; lang: string; country: string; sort: ReviewSort; requestType: RequestTypeKey },
-  savedReviews: ReviewEntry[]
-): Promise<{ data: ReviewEntry[]; nextPaginationToken: string | null }> {
+  savedReviews: Review[]
+): Promise<{ data: Review[]; nextPaginationToken: string | null }> {
   const parsed = typeof html === 'string' ? scriptData.parse(html) : html;
   const reviews = extract(REQUEST_MAPPINGS.reviews, parsed, opts.appId);
   const tokenValue = scriptData.getPathValue(parsed, REQUEST_MAPPINGS.token);
@@ -138,9 +124,9 @@ async function processReviewsAndGetNextPage(
 
 function makeReviewsRequest(
   opts: { appId: string; sort: ReviewSort; lang: string; country: string; num: number; requestType: RequestTypeKey; paginate?: boolean },
-  savedReviews: ReviewEntry[],
+  savedReviews: Review[],
   nextToken: string
-): Promise<{ data: ReviewEntry[]; nextPaginationToken: string | null }> {
+): Promise<{ data: Review[]; nextPaginationToken: string | null }> {
   // Never ask for more than still needed: the returned token points past the whole page, so any surplus sliced off would be lost.
   const numberOfReviewsPerRequest = Math.min(opts.num - savedReviews.length, 150);
   const body = getBodyForRequests({ appId: opts.appId, sort: opts.sort, numberOfReviewsPerRequest, withToken: nextToken, requestType: opts.requestType });

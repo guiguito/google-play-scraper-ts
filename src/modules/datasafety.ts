@@ -1,18 +1,18 @@
 import { BASE_URL } from '../constants';
 import { request } from '../http/client';
 import * as scriptData from '../utils/scriptData';
-import type { JsonValue } from '../types';
+import type { DataSafety, DataSafetyItem, JsonValue } from '../types';
 
 export interface DataSafetyOptions { appId: string; lang?: string; country?: string }
 
-export async function datasafety(opts: DataSafetyOptions) {
+export async function datasafety(opts: DataSafetyOptions): Promise<DataSafety> {
   if (!opts || !opts.appId) throw new Error('appId missing');
   const PLAYSTORE_URL = `${BASE_URL}/store/apps/datasafety`;
   const searchParams = new URLSearchParams({ id: opts.appId, hl: opts.lang || 'en' });
   const reqUrl = `${PLAYSTORE_URL}?${searchParams}`;
   const html = await request({ url: reqUrl, method: 'GET', country: opts.country });
   const parsed = scriptData.parse(html);
-  const mapped = scriptData.extractor(MAPPINGS)(parsed);
+  const mapped = scriptData.extractor<DataSafety>(MAPPINGS)(parsed);
   return mapped;
 }
 
@@ -21,7 +21,7 @@ const MAPPINGS = {
   collectedData: { path: ['ds:3', 1, 2, 137, 4, 1, 0], fun: mapDataEntries },
   securityPractices: { path: ['ds:3', 1, 2, 137, 9, 2], fun: mapSecurityPractices },
   privacyPolicyUrl: ['ds:3', 1, 2, 99, 0, 5, 2],
-} satisfies scriptData.GenericMappings;
+} satisfies Record<string, scriptData.MappingSpec<unknown>>;
 
 function mapSecurityPractices(practices: JsonValue | undefined) {
   if (!Array.isArray(practices)) return [] as Array<{ practice?: string; description?: string }>;
@@ -36,20 +36,25 @@ function mapSecurityPractices(practices: JsonValue | undefined) {
   });
 }
 
-function mapDataEntries(dataEntries: JsonValue | undefined) {
-  if (!Array.isArray(dataEntries)) return [] as Array<{ data?: string; optional?: JsonValue; purpose?: JsonValue; type?: JsonValue }>;
+function mapDataEntries(dataEntries: JsonValue | undefined): DataSafetyItem[] {
+  if (!Array.isArray(dataEntries)) return [];
   return dataEntries.flatMap((entry) => {
     if (!Array.isArray(entry)) return [];
     const type = scriptData.getPathValue(entry, [0, 1]);
     const details = scriptData.getPathValue(entry, [4]);
     if (!Array.isArray(details)) return [];
     return details
-      .map((detail) => ({
-        data: typeof scriptData.getPathValue(detail, [0]) === 'string' ? (scriptData.getPathValue(detail, [0]) as string) : undefined,
-        optional: scriptData.getPathValue(detail, [1]),
-        purpose: scriptData.getPathValue(detail, [2]),
-        type,
-      }));
+      .map((detail) => {
+        const data = scriptData.getPathValue(detail, [0]);
+        const optional = scriptData.getPathValue(detail, [1]);
+        const purpose = scriptData.getPathValue(detail, [2]);
+        return {
+          data: typeof data === 'string' ? data : undefined,
+          optional: typeof optional === 'boolean' ? optional : null,
+          purpose: typeof purpose === 'string' ? purpose : null,
+          type: typeof type === 'string' ? type : undefined,
+        };
+      });
   });
 }
 

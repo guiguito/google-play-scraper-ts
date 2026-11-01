@@ -5,7 +5,7 @@ import { processPages, checkFinished, type ProcessMappings } from '../utils/proc
 import appList from '../utils/appList';
 import helper from '../utils/mappingHelpers';
 import { hydrateMissingSummaries } from '../utils/hydrateMissingSummaries';
-import type { JsonValue } from '../types';
+import type { AppDetails, JsonValue } from '../types';
 import type { AppListItem } from '../utils/appList';
 
 const INITIAL_MAPPINGS = {
@@ -31,7 +31,7 @@ export interface SimilarOptions {
   fullDetail?: boolean;
 }
 
-export async function similar(opts: SimilarOptions) {
+export async function similar(opts: SimilarOptions): Promise<AppListItem[] | AppDetails[]> {
   if (!opts || !opts.appId) throw new Error('appId missing');
   const merged = { appId: opts.appId, lang: opts.lang || 'en', country: opts.country || 'us', fullDetail: opts.fullDetail };
   const qs = new URLSearchParams({ id: merged.appId, hl: merged.lang, gl: merged.country }).toString();

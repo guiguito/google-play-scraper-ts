@@ -4,7 +4,7 @@ import * as scriptData from '../utils/scriptData';
 import { checkFinished } from '../utils/processPages';
 import helper from '../utils/mappingHelpers';
 import { hydrateMissingSummaries } from '../utils/hydrateMissingSummaries';
-import type { JsonValue } from '../types';
+import type { AppDetails, JsonValue } from '../types';
 import type { AppListItem } from '../utils/appList';
 
 function buildUrl(opts: { lang: string; devId: string; country: string }) {
@@ -22,7 +22,7 @@ export interface DeveloperOptions {
   fullDetail?: boolean;
 }
 
-export async function developer(opts: DeveloperOptions) {
+export async function developer(opts: DeveloperOptions): Promise<AppListItem[] | AppDetails[]> {
   if (!opts.devId) throw new Error('devId missing');
   const merged = { ...opts, num: opts.num ?? 60, lang: opts.lang ?? 'en', country: opts.country ?? 'us' };
   const url = buildUrl(merged);

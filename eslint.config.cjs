@@ -44,7 +44,9 @@ module.exports = [
       'no-unused-vars': 'off',
       '@typescript-eslint/no-unused-vars': 'off',
       'no-empty': 'off',
-      'no-useless-escape': 'off'
+      'no-useless-escape': 'off',
+      // TS overloads look like redeclarations to the core rule; tsc catches real ones.
+      'no-redeclare': 'off'
     }
   },
   {

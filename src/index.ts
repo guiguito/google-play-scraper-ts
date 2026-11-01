@@ -3,6 +3,10 @@ import { configureProxy as applyProxyConfig, type ProxySettings } from './http/p
 import app from './modules/app';
 import list from './modules/list';
 import search, { type SearchOptions } from './modules/search';
+import type { ListOptions } from './modules/list';
+import type { DeveloperOptions } from './modules/developer';
+import type { SimilarOptions } from './modules/similar';
+import type { FullDetailFn } from './types';
 import suggest from './modules/suggest';
 import developer from './modules/developer';
 import reviews from './modules/reviews';
@@ -13,29 +17,43 @@ import categories from './modules/categories';
 
 export type { Constants } from './constants';
 export { constants };
+export { HttpError, NotFoundError, ParseError } from './errors';
+export type {
+  AppDetails,
+  AppSummary,
+  Review,
+  PermissionItem,
+  DataSafety,
+  DataSafetyItem,
+  FullDetailFn,
+} from './types';
+export type { AppOptions } from './modules/app';
+export type { ListOptions, DeveloperOptions, SimilarOptions, SearchOptions };
+export type { SuggestOptions } from './modules/suggest';
+export type { ReviewsOptions } from './modules/reviews';
+export type { PermissionsOptions } from './modules/permissions';
+export type { DataSafetyOptions } from './modules/datasafety';
 
 type MemoizeOptions = {
   maxAge?: number;
   max?: number;
 };
 
-type AsyncFn<A extends unknown[] = unknown[], R = unknown> = (...args: A) => Promise<R>;
-
 const baseApi = {
   ...constants,
   app,
-  list,
-  search: (opts: SearchOptions) => search(app, opts),
+  list: list as FullDetailFn<ListOptions>,
+  search: ((opts: SearchOptions) => search(app, opts)) as FullDetailFn<SearchOptions>,
   suggest,
-  developer,
+  developer: developer as FullDetailFn<DeveloperOptions>,
   reviews,
-  similar,
+  similar: similar as FullDetailFn<SimilarOptions>,
   permissions,
   datasafety,
   categories,
 };
 
-export type PlayStoreApi = typeof baseApi & { memoized?: typeof memoized };
+export type PlayStoreApi = typeof baseApi & { memoized: typeof memoized };
 
 export type {
   ProxySettings,
@@ -63,13 +81,15 @@ export function memoized(_opts?: MemoizeOptions): PlayStoreApi {
   const cache = new Map<string, { t: number; v: unknown }>();
   const maxAge = _opts?.maxAge ?? 5 * 60 * 1000;
   const max = _opts?.max ?? 1000;
-  function m<A extends unknown[], R>(fn: AsyncFn<A, R>): AsyncFn<A, R> {
-    return async (...args: A) => {
+  // Typed as F so overloads (fullDetail, short) survive memoization.
+  function m<F extends (...args: never[]) => Promise<unknown>>(fn: F): F {
+    const call = fn as unknown as (...args: unknown[]) => Promise<unknown>;
+    const wrapped = async (...args: unknown[]) => {
       const key = `${fn.name}:${JSON.stringify(args)}`;
       const now = Date.now();
       const hit = cache.get(key);
-      if (hit && now - hit.t <= maxAge) return hit.v as R;
-      const value = await fn(...args);
+      if (hit && now - hit.t <= maxAge) return hit.v;
+      const value = await call(...args);
       cache.set(key, { t: now, v: value });
       if (cache.size > max) {
         const it = cache.keys().next();
@@ -77,18 +97,19 @@ export function memoized(_opts?: MemoizeOptions): PlayStoreApi {
       }
       return value;
     };
+    return wrapped as unknown as F;
   }
   const mApp = m(app);
-  const memoizedSearch = m((opts: SearchOptions) => search(mApp, opts));
+  const memoizedSearch = m(((opts: SearchOptions) => search(mApp, opts)) as FullDetailFn<SearchOptions>);
   return {
     ...constants,
     app: mApp,
-    list: m(list),
+    list: m(baseApi.list),
     search: memoizedSearch,
     suggest: m(suggest),
-    developer: m(developer),
+    developer: m(baseApi.developer),
     reviews: m(reviews),
-    similar: m(similar),
+    similar: m(baseApi.similar),
     permissions: m(permissions),
     datasafety: m(datasafety),
     categories: m(categories),

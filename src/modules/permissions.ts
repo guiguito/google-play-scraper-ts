@@ -1,12 +1,9 @@
 import { BASE_URL, constants } from '../constants';
 import { request } from '../http/client';
 import * as scriptData from '../utils/scriptData';
-import type { JsonValue } from '../types';
+import type { JsonValue, PermissionItem } from '../types';
 
-export interface PermissionItem {
-  permission: string;
-  type: JsonValue;
-}
+export type { PermissionItem };
 
 export interface PermissionsOptions {
   appId: string;
@@ -15,7 +12,10 @@ export interface PermissionsOptions {
   short?: boolean;
 }
 
-export async function permissions(opts: PermissionsOptions) {
+export function permissions(opts: PermissionsOptions & { short: true }): Promise<string[]>;
+export function permissions(opts: PermissionsOptions & { short?: false }): Promise<PermissionItem[]>;
+export function permissions(opts: PermissionsOptions): Promise<string[] | PermissionItem[]>;
+export async function permissions(opts: PermissionsOptions): Promise<string[] | PermissionItem[]> {
   if (!opts || !opts.appId) throw new Error('appId missing');
   const lang = opts.lang || 'en';
   const country = opts.country || 'us';
@@ -68,7 +68,7 @@ function flatMapPermissions(permissionEntry: JsonValue): PermissionItem[] {
   const permissionsList = asArray(scriptData.getPathValue(permissionEntry, MAPPINGS.permissions));
   if (!permissionsList) return [];
   const mappings = getPermissionMappings(typeValue);
-  const mapPermission = scriptData.extractor<{ permission?: string; type: JsonValue }>(mappings);
+  const mapPermission = scriptData.extractor<{ permission?: string; type?: string }>(mappings);
   return permissionsList
     .map((item) => mapPermission(item))
     .filter((result): result is PermissionItem => typeof result.permission === 'string');
@@ -82,7 +82,7 @@ function getPermissionMappings(type: JsonValue) {
     },
     type: {
       path: [],
-      fun: () => type,
+      fun: () => (typeof type === 'string' ? type : undefined),
     },
   } as scriptData.GenericMappings;
 }
