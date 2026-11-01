@@ -18,4 +18,14 @@ describe('modules/suggest', () => {
     expect(res).to.include('spotify');
     scope.done();
   });
+
+  it('sends terms with quotes and backslashes as valid JSON', async () => {
+    const term = 'say "hi" \\ there';
+    let sent;
+    const scope = nock(BASE_URL).post(/IJ4APc/, (b) => { sent = b['f.req']; return true; }).reply(200, ")]}'\n[[null,null,null]]");
+    await suggest({ term });
+    const inner = JSON.parse(JSON.parse(sent)[0][0][1]);
+    expect(inner[0][1][0]).to.equal(term);
+    scope.done();
+  });
 });
