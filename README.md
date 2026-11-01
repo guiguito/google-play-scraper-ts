@@ -136,7 +136,8 @@ All result types are exported: `import type { AppDetails, AppSummary, Review, Pe
 | `videoImage` | `string \| undefined` | Poster image for the promo video. |
 | `previewVideo` | `string \| undefined` | Short autoplay preview clip URL. |
 | `comments` | `string[]` | Up to five highlighted user quotes. |
-| `recentChanges` | `string \| undefined` | “What’s new” text block. |
+| `recentChanges` | `string \| undefined` | “What’s new” as plain text (tags stripped, `<br>` as line breaks). |
+| `recentChangesHTML` | `string \| undefined` | “What’s new” as Play serves it, markup included; sanitize before rendering. |
 
 **Developer & policies**
 
@@ -185,6 +186,7 @@ Returned by list, search, developer and similar methods when `fullDetail` is `fa
 | `developer` | `string \| undefined` | Developer display name. |
 | `developerId` | `string \| undefined` | Only on `search()`'s top result: Play's list cards don't carry it. Use `fullDetail: true` to get it on every entry. |
 | `summary` | `string \| undefined` | Short synopsis. |
+| `descriptionHTML` | `string \| undefined` | Full description markup, when the result card carries it (first pages of search, list, developer, similar; not search continuation pages). Saves an `app()` call; sanitize before rendering. |
 | `price` | `number \| undefined` | Current price in the store currency (`0` for free apps). |
 | `priceText` | `string \| undefined` | Price label (`'FREE'`, `'$0.99'`, …). |
 | `currency` | `string \| undefined` | Currency code. |

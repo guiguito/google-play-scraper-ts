@@ -42,6 +42,8 @@ describe('modules/list', () => {
     const res = await list({ category: constants.category.APPLICATION, collection: constants.collection.TOP_FREE, num: 1, lang: 'en', country: 'us' });
     expect(res).to.have.length(1);
     expect(res[0].appId).to.equal('com.test.app');
+    // Play puts the full description markup in the card's summary cell; summary keeps a short line.
+    expect(res[0].descriptionHTML).to.equal('Summary');
     scope.done();
   });
 

@@ -151,6 +151,7 @@ describe('modules/search', () => {
         price: 0,
         free: true,
         summary: 'Summary',
+        descriptionHTML: 'Summary<br>line',
         scoreText: '4.5',
         score: 4.5,
       },

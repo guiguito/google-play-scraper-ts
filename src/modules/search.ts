@@ -87,6 +87,7 @@ function mapStoreListApp(raw: JsonValue | undefined): AppListItem | undefined {
     price,
     free: price === 0,
     summary: helper.summaryText(scriptData.getPathValue(data, [13])),
+    descriptionHTML: asString(scriptData.getPathValue(data, [13, 1])),
     scoreText: asString(scriptData.getPathValue(data, [4, 0])),
     score: asNumber(scriptData.getPathValue(data, [4, 1])),
   };
@@ -119,6 +120,7 @@ function mapStoreSingleApp(node: JsonValue | undefined): AppListItem | undefined
     price,
     free: price === 0,
     summary: helper.summaryText(scriptData.getPathValue(node, [73])),
+    descriptionHTML: asString(scriptData.getPathValue(node, [72, 0, 1])),
     scoreText: asString(scriptData.getPathValue(node, [51, 0, 0])),
     score: asNumber(scriptData.getPathValue(node, [51, 0, 1])),
   };
